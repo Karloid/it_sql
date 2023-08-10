@@ -155,21 +155,20 @@ BEGIN
                 contractDraftFulfilledQty := contractDraftFulfilledQty + vendorQtyToBuy;
 
                 if vendorQtyToBuy > 0.0 then
-                    -- insert to offers contractor and quantity
-                    -- notice about buying stuff
-                    raise notice '[PLAYER %] buying % items from vendor % by price % sum-buy-value %',
-                        player_id, vendorQtyToBuy, vendor.id, vendor.price_per_unit, vendorQtyToBuy * vendor.price_per_unit;
-                    insert into actions.offers (contractor, quantity) values (vendor.id, vendorQtyToBuy);
+                -- insert to offers contractor and quantity
+                -- notice about buying stuff
+                raise notice '[PLAYER %] buying % items from vendor % by price % sum-buy-value %',
+                    player_id, vendorQtyToBuy, vendor.id, vendor.price_per_unit, vendorQtyToBuy * vendor.price_per_unit;
+                insert into actions.offers (contractor, quantity) values (vendor.id, vendorQtyToBuy);
                 end if;
-
+                
             end loop;
 
         -- insert sell contract from draftContract
         -- notice about actual placed contract
         raise notice '[PLAYER %] actual placed contract, contractor % quantity % item % price % sum-sell-value %',
             player_id, contractDraft.id, contractDraftFulfilledQty, contractDraft.item_id, contractDraft.price_per_unit, contractDraft.quantity * contractDraft.price_per_unit;
-        insert into actions.offers (contractor, quantity)
-        values (contractDraft.id, contractDraftFulfilledQty - 0.000000001);
+        insert into actions.offers (contractor, quantity) values (contractDraft.id, contractDraftFulfilledQty - 0.000000001);
 
         return;
     end if;
@@ -181,28 +180,6 @@ BEGIN
     from world.contractors
     where id = currentContract.contractor;
 
-    select *
-    into remainingItemsStoredInfo
-    from (select items.id,
-                 coalesce((select sum(c.quantity)
-                           from world.cargo c
-                           where c.item = items.id
-                             and c.ship in (select s.id from world.ships s where s.player = player_id)), 0.0) +
-                 coalesce((select sum(c.quantity)
-                           from world.storage c
-                           where c.item = items.id
-                             and c.player = player_id), 0.0) remaining
-          from world.items items) data
-    where currentContractDetails.item = data.id;
-
-    raise notice '[PLAYER %] remaining items % contract qty %', player_id, remainingItemsStoredInfo.remaining, currentContract.quantity;
-
-    if remainingItemsStoredInfo.remaining < currentContract.quantity then
-        raise notice '[PLAYER %] !ERROR! not enough items %, need % stored % diff %',
-            player_id, currentContractDetails.item, currentContract.quantity, remainingItemsStoredInfo.remaining, currentContract.quantity - remainingItemsStoredInfo.remaining;
-        -- TODO buy missing items
-      --  return;
-    end if;
 
     for parkedShip in
         select *,
@@ -216,16 +193,14 @@ BEGIN
           and s.player = player_id
           and s.id not in (select ts.ship from world.transferring_ships ts)
         loop
+            --    raise notice '[PLAYER %] ship % is on island %', player_id, parkedShip.ship, parkedShip.island;
 
-            select coalesce(sum(storage.quantity), 0.0) storageItemQty
+            select sum(storage.quantity) storageItemQty
             into currentIslandInfo
             from world.storage storage
             where storage.island = parkedShip.island
               and storage.item = currentContractDetails.item
               and storage.player = player_id;
-
-            raise notice '[PLAYER %] ship % is on  currentCargo % island.id % island.storageItemQty %',
-                player_id, parkedShip.ship, parkedShip.currentCargo,parkedShip.island, currentIslandInfo.storageItemQty;
 
             if parkedShip.island = currentContractDetails.island and parkedShip.currentCargo > 0.0 then
                 -- raise unload notice
@@ -270,12 +245,12 @@ BEGIN
                     --    raise notice '[PLAYER %] ship % is on island % and has % items going to move', player_id, parkedShip.ship, parkedShip.island, parkedShip.currentCargo;
                     call moveToTheNextIsland(player_id, parkedShip.id, islandToLoadInfo.island);
                 else
-                    raise notice '[PLAYER %] !ERROR! no islands with items %', player_id, currentContractDetails.item;
+                    --     raise notice '[PLAYER %] !ERROR! no islands with items %', player_id, currentContractDetails.item;
                 end if;
 
             else
-                raise notice '[PLAYER %] !ERROR! no action found for ship % island % currentCargo %',
-                    player_id, parkedShip.id, parkedShip.island, parkedShip.currentCargo;
+                /*  raise notice '[PLAYER %] !ERROR! no action found for ship % island % currentCargo %',
+                      player_id, parkedShip.id, parkedShip.island, parkedShip.currentCargo;*/
             end if;
 
         end loop;
