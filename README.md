@@ -1,7 +1,7 @@
 ## Локальный запуск
         
 ```sh
-docker run --rm -i -p 5432:5432 -e SEED=123  --mount "type=bind,src=$(pwd)/solution.sql,dst=/tmp/player1.sql" --mount "type=bind,src=$(pwd)/solution_01.sql,dst=/tmp/player2.sql" ghcr.io/all-cups/it_one_cup_sql --solution /tmp/player1.sql --solution /tmp/player2.sql --leave-running
+docker run --rm -i -p 5432:5432 -e SEED=123  --mount "type=bind,src=$(pwd)/solution.sql,dst=/tmp/player1.sql" --mount "type=bind,src=$(pwd)/solution_02.sql,dst=/tmp/player2.sql" ghcr.io/all-cups/it_one_cup_sql --solution /tmp/player1.sql --solution /tmp/player2.sql --leave-running
 
 cat solution.sql | docker run --rm -i -p 5432:5432 -e SEED=123 ghcr.io/all-cups/it_one_cup_sql --solution - --leave-running
 ```
