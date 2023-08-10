@@ -1,7 +1,7 @@
 create procedure moveToTheNextIsland(player_id integer, ship_id integer, island_id integer) as
 $$
 begin
-    raise notice '[PLAYER %] MOVING SHIP % TO ISLAND %', player_id, ship_id, island_id;
+    --  raise notice '[PLAYER %] MOVING SHIP % TO ISLAND %', player_id, ship_id, island_id;
     insert into actions.ship_moves (ship, destination) values (ship_id, island_id);
 end
 $$ language plpgsql;
@@ -24,6 +24,8 @@ declare
     parkedShip                      record;
     currentIslandInfo               record;
     islandToLoadInfo                record;
+    existingItemStorageQty          double precision;
+    remainingItemsStoredInfo        record;
 BEGIN
     select game_time into currentTime from world.global;
     select money into myMoney from world.players where id = player_id;
@@ -34,52 +36,103 @@ BEGIN
     select * into currentContract from world.contracts where player = player_id;
 
     if currentContract is null then
-        raise notice '[PLAYER %] no contract yet, try find contract', player_id;
+        --   raise notice '[PLAYER %] no contract yet, try find contract', player_id;
 
-        select best_item.id as item_id, c.*
-        into contractDraft
-        from (select *
-              from (select *,
-                           (select count(*)
-                            from world.contractors c
-                            where c.item = i.id
-                              and c.type = 'vendor')                               vendors,
-                           (select count(*)
-                            from world.contractors c
-                            where c.item = i.id
-                              and c.type = 'customer')                             customers,
-                           -- possible profit
-                           (select max(c.price_per_unit)
-                            from world.contractors c
-                            where c.item = i.id
-                              and c.type = 'customer') - (select min(c.price_per_unit)
-                                                          from world.contractors c
-                                                          where c.item = i.id
-                                                            and c.type = 'vendor') max_price_diff,
-                           (select sum(c.price_per_unit * c.quantity)
-                            from world.contractors c
-                            where c.item = i.id
-                              and c.type = 'customer') - (select sum(c.price_per_unit * c.quantity)
-                                                          from world.contractors c
-                                                          where c.item = i.id
-                                                            and c.type = 'vendor') total_profit
-                    from world.items i) d
+        -- select largest remaining in storage and try sell it
+        select *
+        into remainingItemsStoredInfo
+        from (select items.id,
+                     coalesce((select sum(c.quantity)
+                               from world.cargo c
+                               where c.item = items.id
+                                 and c.ship in (select s.id from world.ships s where s.player = player_id)), 0.0) +
+                     coalesce((select sum(c.quantity)
+                               from world.storage c
+                               where c.item = items.id
+                                 and c.player = player_id), 0.0) remaining
+              from world.items items) data
+        where data.remaining > 1.0
+        order by data.remaining desc
+        limit 1;
 
-              order by d.total_profit desc
-              limit 1) best_item,
-             world.contractors c
-        where c.item = best_item.id
-          and c.type = 'customer'
-          and c.price_per_unit = (select max(c.price_per_unit)
-                                  from world.contractors c
-                                  where c.item = best_item.id
-                                    and c.type = 'customer');
+        if remainingItemsStoredInfo is not null then
+            raise notice '[PLAYER %] found remaining item % qty % try find customer for it', player_id,
+                remainingItemsStoredInfo.id, remainingItemsStoredInfo.remaining;
+            select best_item.id as item_id, c.*
+            into contractDraft
+            from (select remainingItemsStoredInfo.id) best_item,
+                 world.contractors c
+            where c.item = best_item.id
+              and c.type = 'customer'
+              and c.price_per_unit = (select max(c.price_per_unit)
+                                      from world.contractors c
+                                      where c.item = best_item.id
+                                        and c.type = 'customer');
 
-        raise notice '[PLAYER %] best contract possible is item_id % contractor % qty % price %', player_id, contractDraft.item_id, contractDraft.id, contractDraft.quantity, contractDraft.price_per_unit;
+
+        else
+            select best_item.id as item_id, c.*
+            into contractDraft
+            from (select *
+                  from (select *,
+                               (select count(*)
+                                from world.contractors c
+                                where c.item = i.id
+                                  and c.type = 'vendor')                               vendors,
+                               (select count(*)
+                                from world.contractors c
+                                where c.item = i.id
+                                  and c.type = 'customer')                             customers,
+                               -- possible profit
+                               (select max(c.price_per_unit)
+                                from world.contractors c
+                                where c.item = i.id
+                                  and c.type = 'customer') - (select min(c.price_per_unit)
+                                                              from world.contractors c
+                                                              where c.item = i.id
+                                                                and c.type = 'vendor') max_price_diff,
+                               (select sum(c.price_per_unit * c.quantity)
+                                from world.contractors c
+                                where c.item = i.id
+                                  and c.type = 'customer') - (select sum(c.price_per_unit * c.quantity)
+                                                              from world.contractors c
+                                                              where c.item = i.id
+                                                                and c.type = 'vendor') total_profit
+                        from world.items i) d
+
+                  order by d.total_profit desc
+                  limit 1) best_item,
+                 world.contractors c
+            where c.item = best_item.id
+              and c.type = 'customer'
+              and c.price_per_unit = (select max(c.price_per_unit)
+                                      from world.contractors c
+                                      where c.item = best_item.id
+                                        and c.type = 'customer');
+
+        end if;
+
+
+        raise notice '[PLAYER %] best contract possible is item_id % contractor % qty % price % max-sum-value %',
+            player_id, contractDraft.item_id, contractDraft.id, contractDraft.quantity, contractDraft.price_per_unit,
+            contractDraft.quantity * contractDraft.price_per_unit;
 
         -- todo handle case if no remaining vendors
         contractDraftRemainToFulfillQty := contractDraft.quantity + 0.000000001;
         contractDraftFulfilledQty := 0.0;
+
+        select coalesce((select sum(c.quantity)
+                         from world.cargo c
+                         where c.item = contractDraft.item
+                           and c.ship in (select s.id from world.ships s where s.player = player_id)), 0.0) +
+               coalesce((select sum(c.quantity)
+                         from world.storage c
+                         where c.item = contractDraft.item
+                           and c.player = player_id), 0.0)
+        into existingItemStorageQty;
+
+        contractDraftFulfilledQty := existingItemStorageQty;
+        contractDraftRemainToFulfillQty := contractDraftRemainToFulfillQty - contractDraftFulfilledQty;
 
         for vendor in
             select *
@@ -89,7 +142,7 @@ BEGIN
               and c.price_per_unit <= contractDraft.price_per_unit
             order by c.price_per_unit asc
             loop
-                raise notice '[PLAYER %] vendor % has % items', player_id, vendor.id, vendor.quantity;
+                --  raise notice '[PLAYER %] vendor % has % items', player_id, vendor.id, vendor.quantity;
                 vendorQtyToBuy := 0.0;
 
                 if vendor.quantity >= contractDraftRemainToFulfillQty then
@@ -101,15 +154,21 @@ BEGIN
                 end if;
                 contractDraftFulfilledQty := contractDraftFulfilledQty + vendorQtyToBuy;
 
+                if vendorQtyToBuy > 0.0 then
                 -- insert to offers contractor and quantity
+                -- notice about buying stuff
+                raise notice '[PLAYER %] buying % items from vendor % by price % sum-buy-value %',
+                    player_id, vendorQtyToBuy, vendor.id, vendor.price_per_unit, vendorQtyToBuy * vendor.price_per_unit;
                 insert into actions.offers (contractor, quantity) values (vendor.id, vendorQtyToBuy);
-
+                end if;
+                
             end loop;
 
         -- insert sell contract from draftContract
         -- notice about actual placed contract
-        raise notice '[PLAYER %] actual placed contract, contractor % quantity % item %', player_id, contractDraft.id, contractDraftFulfilledQty, contractDraft.item_id;
-        insert into actions.offers (contractor, quantity) values (contractDraft.id, contractDraftFulfilledQty);
+        raise notice '[PLAYER %] actual placed contract, contractor % quantity % item % price % sum-sell-value %',
+            player_id, contractDraft.id, contractDraftFulfilledQty, contractDraft.item_id, contractDraft.price_per_unit, contractDraft.quantity * contractDraft.price_per_unit;
+        insert into actions.offers (contractor, quantity) values (contractDraft.id, contractDraftFulfilledQty - 0.000000001);
 
         return;
     end if;
@@ -134,7 +193,7 @@ BEGIN
           and s.player = player_id
           and s.id not in (select ts.ship from world.transferring_ships ts)
         loop
-            raise notice '[PLAYER %] ship % is on island %', player_id, parkedShip.ship, parkedShip.island;
+            --    raise notice '[PLAYER %] ship % is on island %', player_id, parkedShip.ship, parkedShip.island;
 
             select sum(storage.quantity) storageItemQty
             into currentIslandInfo
@@ -145,7 +204,7 @@ BEGIN
 
             if parkedShip.island = currentContractDetails.island and parkedShip.currentCargo > 0.0 then
                 -- raise unload notice
-                raise notice '[PLAYER %] ship % is on island % and has % items going to unload', player_id, parkedShip.ship, parkedShip.island, parkedShip.currentCargo;
+                --    raise notice '[PLAYER %] ship % is on island % and has % items going to unload', player_id, parkedShip.ship, parkedShip.island, parkedShip.currentCargo;
 
                 insert into actions.transfers (ship, item, quantity, direction)
                 values (parkedShip.ship,
@@ -153,14 +212,14 @@ BEGIN
                         parkedShip.currentCargo,
                         'unload');
             elseif parkedShip.island <> currentContractDetails.island and parkedShip.currentCargo > 0.0 then
-                raise notice '[PLAYER %] ship % is on island % and has % items going to transfer', player_id, parkedShip.ship, parkedShip.island, parkedShip.currentCargo;
+                --     raise notice '[PLAYER %] ship % is on island % and has % items going to transfer', player_id, parkedShip.ship, parkedShip.island, parkedShip.currentCargo;
 
                 call moveToTheNextIsland(player_id, parkedShip.id, currentContractDetails.island);
 
             elseif parkedShip.island <> currentContractDetails.island and parkedShip.currentCargo = 0.0
                 and currentIslandInfo.storageItemQty > 0.0 then
                 -- load ship with items
-                raise notice '[PLAYER %] ship % is on island % and has % items going to load', player_id, parkedShip.ship, parkedShip.island, parkedShip.currentCargo;
+                --  raise notice '[PLAYER %] ship % is on island % and has % items going to load', player_id, parkedShip.ship, parkedShip.island, parkedShip.currentCargo;
 
                 insert into actions.transfers (ship, item, quantity, direction)
                 values (parkedShip.ship,
@@ -183,15 +242,15 @@ BEGIN
 
                 -- check for null
                 if islandToLoadInfo is not null then
-                    raise notice '[PLAYER %] ship % is on island % and has % items going to move', player_id, parkedShip.ship, parkedShip.island, parkedShip.currentCargo;
+                    --    raise notice '[PLAYER %] ship % is on island % and has % items going to move', player_id, parkedShip.ship, parkedShip.island, parkedShip.currentCargo;
                     call moveToTheNextIsland(player_id, parkedShip.id, islandToLoadInfo.island);
                 else
-                    raise notice '[PLAYER %] !ERROR! no islands with items %', player_id, currentContractDetails.item;
+                    --     raise notice '[PLAYER %] !ERROR! no islands with items %', player_id, currentContractDetails.item;
                 end if;
 
             else
-                raise notice '[PLAYER %] !ERROR! no action found for ship % island % currentCargo %',
-                    player_id, parkedShip.id, parkedShip.island, parkedShip.currentCargo;
+                /*  raise notice '[PLAYER %] !ERROR! no action found for ship % island % currentCargo %',
+                      player_id, parkedShip.id, parkedShip.island, parkedShip.currentCargo;*/
             end if;
 
         end loop;
