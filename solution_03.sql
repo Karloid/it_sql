@@ -27,11 +27,10 @@ declare
     existingItemStorageQty          double precision;
     remainingItemsStoredInfo        record;
     myTransferingShips              integer;
-    debugg                          boolean := true;
 BEGIN
     select game_time into currentTime from world.global;
     select money into myMoney from world.players where id = player_id;
-    if debugg then raise notice '[PLAYER %] time: % and money: %', player_id, currentTime, myMoney; end if;
+   -- raise notice '[PLAYER %] time: % and money: %', player_id, currentTime, myMoney;
 
     -- TODO pick best contract to sell if nothing yet
 
@@ -58,12 +57,8 @@ BEGIN
         limit 1;
 
         if remainingItemsStoredInfo is not null then
-
-            if debugg then
-                raise notice '[PLAYER %] found remaining item % qty % try find customer for it', player_id,
-                    remainingItemsStoredInfo.id, remainingItemsStoredInfo.remaining;
-            end if;
-
+          --  raise notice '[PLAYER %] found remaining item % qty % try find customer for it', player_id,
+          --      remainingItemsStoredInfo.id, remainingItemsStoredInfo.remaining;
             select best_item.id as item_id, c.*
             into contractDraft
             from (select remainingItemsStoredInfo.id) best_item,
@@ -132,28 +127,18 @@ BEGIN
                                       from world.contractors c
                                       where c.item = best_item.id
                                         and c.type = 'customer');
-            if debugg then
-                raise notice '[PLAYER %] found best item % qty % price % has_not_empty_vendors % total_profit %',
-                    player_id, contractDraft.item_id,
-                    contractDraft.quantity, contractDraft.price_per_unit, contractDraft.has_not_empty_vendors,
-                    contractDraft.total_profit;
-            end if;
+       /*     raise notice '[PLAYER %] found best item % qty % price % has_not_empty_vendors % total_profit %',
+                player_id, contractDraft.item_id,
+                contractDraft.quantity, contractDraft.price_per_unit, contractDraft.has_not_empty_vendors,
+                contractDraft.total_profit;*/
 
         end if;
 
-        if contractDraft is null then
-            if debugg then raise notice '[PLAYER %] no contract found, need wait for 5 sec', player_id; end if;
-            insert into actions.wait (until) values (currentTime + 5);
-            return;
-        end if;
 
-
-        if debugg then
-            raise notice '[PLAYER %] best contract possible is item_id % contractor % qty % price_per_unit % max-sum-value %',
-                player_id, contractDraft.item_id, contractDraft.id, contractDraft.quantity, contractDraft.price_per_unit,
-                contractDraft.quantity * contractDraft.price_per_unit;
-        end if;
-
+/*        raise notice '[PLAYER %] best contract possible is item_id % contractor % qty % price_per_unit % max-sum-value %',
+            player_id, contractDraft.item_id, contractDraft.id, contractDraft.quantity, contractDraft.price_per_unit,
+            contractDraft.quantity * contractDraft.price_per_unit;
+*/
         -- todo handle case if no remaining vendors
         contractDraftRemainToFulfillQty := contractDraft.quantity + 0.000000001;
         contractDraftFulfilledQty := 0.0;
@@ -194,10 +179,8 @@ BEGIN
             loop
                 --  raise notice '[PLAYER %] vendor % has % items', player_id, vendor.id, vendor.quantity;
                 vendorQtyToBuy := 0.0;
-                if debugg then
-                    raise notice '[PLAYER %] vendor % contractDraftRemainToFulfillQty % vendor.quantity %', player_id, vendor.id,
-                        contractDraftRemainToFulfillQty, vendor.quantity;
-                end if;
+                raise notice '[PLAYER %] vendor % contractDraftRemainToFulfillQty % vendor.quantity %', player_id, vendor.id,
+                    contractDraftRemainToFulfillQty, vendor.quantity;
 
                 if vendor.quantity >= contractDraftRemainToFulfillQty then
                     vendorQtyToBuy := contractDraftRemainToFulfillQty;
@@ -211,11 +194,8 @@ BEGIN
                 if vendorQtyToBuy > 0.0 then
                     -- insert to offers contractor and quantity
                     -- notice about buying stuff
-                    if debugg then
-                        raise notice '[PLAYER %] buying % items from vendor % by price % sum-buy-value %',
-                            player_id, vendorQtyToBuy, vendor.id, vendor.price_per_unit, vendorQtyToBuy * vendor.price_per_unit;
-                    end if;
-
+                    raise notice '[PLAYER %] buying % items from vendor % by price % sum-buy-value %',
+                        player_id, vendorQtyToBuy, vendor.id, vendor.price_per_unit, vendorQtyToBuy * vendor.price_per_unit;
                     insert into actions.offers (contractor, quantity) values (vendor.id, vendorQtyToBuy);
                 end if;
 
@@ -223,10 +203,8 @@ BEGIN
 
         -- insert sell contract from draftContract
         -- notice about actual placed contract
-        if debugg then
-            raise notice '[PLAYER %] actual placed contract, contractor % quantity % item % price % sum-sell-value %',
-                player_id, contractDraft.id, contractDraftFulfilledQty, contractDraft.item_id, contractDraft.price_per_unit, contractDraft.quantity * contractDraft.price_per_unit;
-        end if;
+      /*  raise notice '[PLAYER %] actual placed contract, contractor % quantity % item % price % sum-sell-value %',
+            player_id, contractDraft.id, contractDraftFulfilledQty, contractDraft.item_id, contractDraft.price_per_unit, contractDraft.quantity * contractDraft.price_per_unit;*/
         insert into actions.offers (contractor, quantity)
         values (contractDraft.id, contractDraftFulfilledQty - 0.000000001);
 
@@ -262,20 +240,19 @@ BEGIN
       and s.player = player_id;
 
     if remainingItemsStoredInfo.remaining < currentContract.quantity and myTransferingShips = 0 then
-        if debugg then
-            raise notice '[PLAYER %] !ERROR! not enough items % need % stored % diff % buy remaining',
-                player_id, currentContractDetails.item, currentContract.quantity, remainingItemsStoredInfo.remaining, currentContract.quantity - remainingItemsStoredInfo.remaining;
-        end if;
+/*        raise notice '[PLAYER %] !ERROR! not enough items % need % stored % diff % buy remaining',
+            player_id, currentContractDetails.item, currentContract.quantity, remainingItemsStoredInfo.remaining, currentContract.quantity - remainingItemsStoredInfo.remaining;
+*/
         -- todo handle case if no remaining vendors
         contractDraftRemainToFulfillQty := currentContract.quantity + 0.000000001;
 
         select coalesce((select sum(c.quantity)
                          from world.cargo c
-                         where c.item = currentContractDetails.item
+                         where c.item = contractDraft.item
                            and c.ship in (select s.id from world.ships s where s.player = player_id)), 0.0) +
                coalesce((select sum(c.quantity)
                          from world.storage c
-                         where c.item = currentContractDetails.item
+                         where c.item = contractDraft.item
                            and c.player = player_id), 0.0)
         into existingItemStorageQty;
 
@@ -305,11 +282,8 @@ BEGIN
                 if vendorQtyToBuy > 0.0 then
                     -- insert to offers contractor and quantity
                     -- notice about buying stuff
-                    if debugg then
-                        raise notice '[PLAYER %] buying % items from vendor % by price % sum-buy-value %',
-                            player_id, vendorQtyToBuy, vendor.id, vendor.price_per_unit, vendorQtyToBuy * vendor.price_per_unit;
-                    end if;
-
+/*                    raise notice '[PLAYER %] buying % items from vendor % by price % sum-buy-value %',
+                        player_id, vendorQtyToBuy, vendor.id, vendor.price_per_unit, vendorQtyToBuy * vendor.price_per_unit;*/
                     insert into actions.offers (contractor, quantity) values (vendor.id, vendorQtyToBuy);
                 end if;
 
@@ -337,11 +311,9 @@ BEGIN
               and storage.item = currentContractDetails.item
               and storage.player = player_id;
 
-            if debugg then
-                raise notice '[PLAYER %] ship % is on  currentCargo % island.id % island.storageItemQty %',
-                    player_id, parkedShip.ship, parkedShip.currentCargo,parkedShip.island, currentIslandInfo.storageItemQty;
-            end if;
-
+/*            raise notice '[PLAYER %] ship % is on  currentCargo % island.id % island.storageItemQty %',
+                player_id, parkedShip.ship, parkedShip.currentCargo,parkedShip.island, currentIslandInfo.storageItemQty;
+*/
             if parkedShip.island = currentContractDetails.island and parkedShip.currentCargo > 0.0 then
                 -- raise unload notice
                 --    raise notice '[PLAYER %] ship % is on island % and has % items going to unload', player_id, parkedShip.ship, parkedShip.island, parkedShip.currentCargo;
@@ -386,16 +358,12 @@ BEGIN
                     call moveToTheNextIsland(player_id, parkedShip.id, islandToLoadInfo.island);
                 else
                     -- TODO BUY HERE?
-                    if debugg then
-                        raise notice '[PLAYER %] !ERROR! no islands with items %', player_id, currentContractDetails.item;
-                    end if;
+                 --   raise notice '[PLAYER %] !ERROR! no islands with items %', player_id, currentContractDetails.item;
                 end if;
 
             else
-                if debugg then
-                    raise notice '[PLAYER %] !ERROR! no action found for ship % island % currentCargo %',
-                        player_id, parkedShip.id, parkedShip.island, parkedShip.currentCargo;
-                end if;
+         --       raise notice '[PLAYER %] !ERROR! no action found for ship % island % currentCargo %',
+           --         player_id, parkedShip.id, parkedShip.island, parkedShip.currentCargo;
             end if;
 
         end loop;

@@ -27,7 +27,7 @@ declare
     existingItemStorageQty          double precision;
     remainingItemsStoredInfo        record;
     myTransferingShips              integer;
-    debugg                          boolean := true;
+    debugg                          boolean := false;
 BEGIN
     select game_time into currentTime from world.global;
     select money into myMoney from world.players where id = player_id;
