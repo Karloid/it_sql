@@ -3,7 +3,6 @@ import threading
 import matplotlib.pyplot as plt
 import queue
 import matplotlib.animation as animation
-
 import re
 
 # Define a thread-safe queue for data sharing
@@ -33,15 +32,17 @@ def run_command(index):
                 firstPlayerScore = score
             if playerNumber == 2:
                 # print which player won and what is final score
+                scoreDiff = firstPlayerScore - score
                 if score > firstPlayerScore:
                     print("FINISH: " + str(index) + " player 2 (BAD) won with score " + str(score) + " against " + str(
-                        firstPlayerScore))
+                        firstPlayerScore) + " diff: " + str(scoreDiff))
                 else:
-                    print("FINISH: " + str(index) + " player 1 won with score " + str(firstPlayerScore) + " against " + str(score))
+                    print("FINISH: " + str(index) + " player 1 won with score " + str(
+                        firstPlayerScore) + " against " + str(score) + " diff: " + str(scoreDiff))
         if index != 0:
             continue
 
-       # print("o:" + decodedLine)
+        # print("o:" + decodedLine)
 
         # Use regular expressions to extract time and money
         time_match = re.search(r"time:\s([\d.]+)", decodedLine)

@@ -1,3 +1,23 @@
+CREATE SCHEMA my;
+CREATE TABLE "my"."kv_double"
+(
+    "key"   TEXT             NOT NULL,
+    "value" DOUBLE PRECISION NOT NULL
+);
+
+CREATE TABLE "my"."kv_int"
+(
+    "key"   TEXT NOT NULL,
+    "value" int  NOT NULL
+);
+
+CREATE TABLE "my"."kv_text"
+(
+    "key"   TEXT NOT NULL,
+    "value" int  NOT NULL
+);
+
+
 create procedure moveToTheNextIsland(player_id integer, ship_id integer, island_id integer) as
 $$
 begin
@@ -12,7 +32,7 @@ $$
 declare
     currentTime                     double precision;
     myMoney                         double precision;
-    oppMoney                         double precision;
+    oppMoney                        double precision;
     ship                            record;
     itemsMeta                       record;
     currentContract                 record;
@@ -33,7 +53,9 @@ BEGIN
     select game_time into currentTime from world.global;
     select money into myMoney from world.players where id = player_id;
     select money into oppMoney from world.players where id <> player_id order by id limit 1;
-    if debugg then raise notice '[PLAYER %] time: % and money: % opp: %', player_id, currentTime, myMoney, oppMoney; end if;
+    if debugg then
+        raise notice '[PLAYER %] time: % and money: % opp: %', player_id, currentTime, myMoney, oppMoney;
+    end if;
 
     -- TODO pick best contract to sell if nothing yet
 
