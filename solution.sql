@@ -12,6 +12,7 @@ $$
 declare
     currentTime                     double precision;
     myMoney                         double precision;
+    oppMoney                         double precision;
     ship                            record;
     itemsMeta                       record;
     currentContract                 record;
@@ -31,7 +32,8 @@ declare
 BEGIN
     select game_time into currentTime from world.global;
     select money into myMoney from world.players where id = player_id;
-    if debugg then raise notice '[PLAYER %] time: % and money: %', player_id, currentTime, myMoney; end if;
+    select money into oppMoney from world.players where id <> player_id order by id limit 1;
+    if debugg then raise notice '[PLAYER %] time: % and money: % opp: %', player_id, currentTime, myMoney, oppMoney; end if;
 
     -- TODO pick best contract to sell if nothing yet
 
