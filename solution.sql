@@ -17,6 +17,85 @@ CREATE TABLE "my"."kv_text"
     "value" int  NOT NULL
 );
 
+-- Function to get an integer value by key from "kv_int" table
+CREATE OR REPLACE FUNCTION getInt(keyInp TEXT)
+    RETURNS int AS
+$BODY$
+DECLARE
+    value int;
+BEGIN
+    SELECT "value"
+    INTO value
+    FROM "my"."kv_int"
+    WHERE "key" = keyInp;
+
+    RETURN value;
+END;
+$BODY$
+    LANGUAGE plpgsql;
+
+-- Procedure to set an integer value by key in "kv_int" table
+CREATE OR REPLACE PROCEDURE setInt(keyInp TEXT, valueInp int) AS
+$BODY$
+BEGIN
+INSERT INTO "my"."kv_int" ("key", "value")
+VALUES (keyInp, valueInp);
+END;
+$BODY$
+LANGUAGE plpgsql;
+
+-- Function to get a double value by key from "kv_double" table
+CREATE OR REPLACE FUNCTION getDouble(keyInp TEXT)
+    RETURNS double precision AS
+$BODY$
+DECLARE
+    value double precision;
+BEGIN
+    SELECT "value" INTO value
+    FROM "my"."kv_double"
+    WHERE "key" = keyInp;
+
+    RETURN value;
+END;
+$BODY$
+    LANGUAGE plpgsql;
+
+-- Procedure to set a double value by key in "kv_double" table
+CREATE OR REPLACE PROCEDURE setDouble(keyInp TEXT, valueInp double precision) AS
+$BODY$
+BEGIN
+INSERT INTO "my"."kv_double" ("key", "value")
+VALUES (keyInp, valueInp);
+END;
+$BODY$
+LANGUAGE plpgsql;
+
+-- Function to get a text value by key from "kv_text" table
+CREATE OR REPLACE FUNCTION getText(keyInp TEXT)
+    RETURNS text AS
+$BODY$
+DECLARE
+    value text;
+BEGIN
+    SELECT "value" INTO value
+    FROM "my"."kv_text"
+    WHERE "key" = keyInp;
+
+    RETURN value;
+END;
+$BODY$
+    LANGUAGE plpgsql;
+
+-- Procedure to set a text value by key in "kv_text" table
+CREATE OR REPLACE PROCEDURE setText(keyInp TEXT, valueInp text) AS
+$BODY$
+BEGIN
+INSERT INTO "my"."kv_text" ("key", "value")
+VALUES (keyInp, valueInp);
+END;
+$BODY$
+LANGUAGE plpgsql;
+
 
 create procedure moveToTheNextIsland(player_id integer, ship_id integer, island_id integer) as
 $$
