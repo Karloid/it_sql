@@ -1,19 +1,19 @@
 CREATE SCHEMA my;
 CREATE TABLE "my"."kv_double"
 (
-    "key"   TEXT             NOT NULL,
+    "key"   TEXT             NOT NULL PRIMARY KEY,
     "value" DOUBLE PRECISION NOT NULL
 );
 
 CREATE TABLE "my"."kv_int"
 (
-    "key"   TEXT NOT NULL,
+    "key"   TEXT NOT NULL PRIMARY KEY,
     "value" int  NOT NULL
 );
 
 CREATE TABLE "my"."kv_text"
 (
-    "key"   TEXT NOT NULL,
+    "key"   TEXT NOT NULL PRIMARY KEY,
     "value" int  NOT NULL
 );
 
@@ -22,14 +22,14 @@ CREATE OR REPLACE FUNCTION getInt(keyInp TEXT)
     RETURNS int AS
 $BODY$
 DECLARE
-    value int;
+    result int;
 BEGIN
     SELECT "value"
-    INTO value
+    INTO result
     FROM "my"."kv_int"
     WHERE "key" = keyInp;
 
-    RETURN value;
+    RETURN result;
 END;
 $BODY$
     LANGUAGE plpgsql;
@@ -38,24 +38,26 @@ $BODY$
 CREATE OR REPLACE PROCEDURE setInt(keyInp TEXT, valueInp int) AS
 $BODY$
 BEGIN
-INSERT INTO "my"."kv_int" ("key", "value")
-VALUES (keyInp, valueInp);
+    INSERT INTO "my"."kv_int" ("key", "value")
+    VALUES (keyInp, valueInp)
+    ON CONFLICT ("key") DO UPDATE SET "value" = EXCLUDED."value";
 END;
 $BODY$
-LANGUAGE plpgsql;
+    LANGUAGE plpgsql;
 
 -- Function to get a double value by key from "kv_double" table
 CREATE OR REPLACE FUNCTION getDouble(keyInp TEXT)
     RETURNS double precision AS
 $BODY$
 DECLARE
-    value double precision;
+    result double precision;
 BEGIN
-    SELECT "value" INTO value
+    SELECT "value"
+    INTO result
     FROM "my"."kv_double"
     WHERE "key" = keyInp;
 
-    RETURN value;
+    RETURN result;
 END;
 $BODY$
     LANGUAGE plpgsql;
@@ -64,24 +66,26 @@ $BODY$
 CREATE OR REPLACE PROCEDURE setDouble(keyInp TEXT, valueInp double precision) AS
 $BODY$
 BEGIN
-INSERT INTO "my"."kv_double" ("key", "value")
-VALUES (keyInp, valueInp);
+    INSERT INTO "my"."kv_double" ("key", "value")
+    VALUES (keyInp, valueInp)
+    ON CONFLICT ("key") DO UPDATE SET "value" = EXCLUDED."value";
 END;
 $BODY$
-LANGUAGE plpgsql;
+    LANGUAGE plpgsql;
 
 -- Function to get a text value by key from "kv_text" table
 CREATE OR REPLACE FUNCTION getText(keyInp TEXT)
     RETURNS text AS
 $BODY$
 DECLARE
-    value text;
+    result text;
 BEGIN
-    SELECT "value" INTO value
+    SELECT "value"
+    INTO result
     FROM "my"."kv_text"
     WHERE "key" = keyInp;
 
-    RETURN value;
+    RETURN result;
 END;
 $BODY$
     LANGUAGE plpgsql;
@@ -90,11 +94,12 @@ $BODY$
 CREATE OR REPLACE PROCEDURE setText(keyInp TEXT, valueInp text) AS
 $BODY$
 BEGIN
-INSERT INTO "my"."kv_text" ("key", "value")
-VALUES (keyInp, valueInp);
+    INSERT INTO "my"."kv_text" ("key", "value")
+    VALUES (keyInp, valueInp)
+    ON CONFLICT ("key") DO UPDATE SET "value" = EXCLUDED."value";
 END;
 $BODY$
-LANGUAGE plpgsql;
+    LANGUAGE plpgsql;
 
 
 create procedure moveToTheNextIsland(player_id integer, ship_id integer, island_id integer) as
@@ -126,8 +131,12 @@ declare
     islandToLoadInfo                record;
     existingItemStorageQty          double precision;
     remainingItemsStoredInfo        record;
+    additionalContractInfo          record;
     myTransferingShips              integer;
     debugg                          boolean := true;
+    mainContractOfferId             integer;
+    debugContracts                  record;
+    tmpInt                          integer;
 BEGIN
     select game_time into currentTime from world.global;
     select money into myMoney from world.players where id = player_id;
@@ -138,10 +147,22 @@ BEGIN
 
     -- TODO pick best contract to sell if nothing yet
 
-    select * into currentContract from world.contracts where player = player_id;
+    raise notice '[PLAYER %] getInt(''main_contract_offer'')= %', player_id, getInt('main_contract_offer');
+
+
+    select contract into tmpInt from events.contract_started where offer = getInt('main_contract_offer');
+    if tmpInt is not null then
+        call setInt('main_contract', tmpInt);
+    end if;
+
+    select *
+    into currentContract
+    from world.contracts c
+    where c.player = player_id
+      and c.id = getInt('main_contract');
 
     if currentContract is null then
-        --   raise notice '[PLAYER %] no contract yet, try find contract', player_id;
+        raise notice '[PLAYER %] no contract yet, try find contract, old main contract %', player_id, getInt('main_contract');
 
         -- select largest remaining in storage and try sell it
         select *
@@ -161,7 +182,7 @@ BEGIN
         limit 1;
 
         if remainingItemsStoredInfo is not null then
-
+            -- finding customer for remaining stuff
             if debugg then
                 raise notice '[PLAYER %] found remaining item % qty % try find customer for it', player_id,
                     remainingItemsStoredInfo.id, remainingItemsStoredInfo.remaining;
@@ -331,7 +352,12 @@ BEGIN
                 player_id, contractDraft.id, contractDraftFulfilledQty, contractDraft.item_id, contractDraft.price_per_unit, contractDraft.quantity * contractDraft.price_per_unit;
         end if;
         insert into actions.offers (contractor, quantity)
-        values (contractDraft.id, contractDraftFulfilledQty - 0.000000001);
+        values (contractDraft.id, contractDraftFulfilledQty - 0.000000001)
+        returning id into mainContractOfferId;
+
+        raise notice '[PLAYER %] put(''main_contract_offer'')= %', player_id, mainContractOfferId;
+        call setInt('main_contract_offer', mainContractOfferId);
+        raise notice '[PLAYER %] after put(''main_contract_offer'')= %', player_id, getInt('main_contract_offer');
 
         return;
     end if;
@@ -486,6 +512,26 @@ BEGIN
                 -- check for null
                 if islandToLoadInfo is not null then
                     --    raise notice '[PLAYER %] ship % is on island % and has % items going to move', player_id, parkedShip.ship, parkedShip.island, parkedShip.currentCargo;
+                    -- try find suitable order
+
+                    select vendors.item, vendors.quantity, customers.quantity
+                    into additionalContractInfo
+                    from world.contractors vendors,
+                         world.contractors customers
+                    where vendors.type = 'vendor'
+                      and vendors.item = currentContractDetails.item
+                      and vendors.price_per_unit <= currentContractDetails.price_per_unit
+                      and vendors.quantity > 0.0
+                      and vendors.island = islandToLoadInfo.island
+                      and customers.type = 'customer'
+                      and customers.item = vendors.item
+                      and customers.price_per_unit >= vendors.price_per_unit
+                      and customers.quantity > 0.0
+                      and customers.island = islandToLoadInfo.island
+                    order by customers.price_per_unit * LEAST(vendors.quantity, customers.quantity) -
+                             vendors.price_per_unit * LEAST(vendors.quantity, customers.quantity) desc;
+
+
                     call moveToTheNextIsland(player_id, parkedShip.id, islandToLoadInfo.island);
                 else
                     -- TODO BUY HERE?
