@@ -103,7 +103,7 @@ def update_plot(frame):
 
         # Set plot limits if desired
         ax.set_xlim(0, max(x_data) + 1)
-        ax.set_ylim(0, max(y1_data) + 1)
+        ax.set_ylim(0, max(max(y1_data), max(y2_data)) + 1)
 
 
 # Start the plot update thread
