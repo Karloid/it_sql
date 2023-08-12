@@ -1,4 +1,4 @@
-max_time = 100000
+max_time = 50000
 map_size = 1000
 islands = 50
 ships_per_player = 10
