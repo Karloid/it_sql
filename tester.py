@@ -40,17 +40,18 @@ def run_command(index):
                 else:
                     print("FINISH: " + str(index) + " player 1 won with score " + str(
                         firstPlayerScore) + " against " + str(score) + " diff: " + str(scoreDiff))
-        if index != 1:
+        if index != 4:
             continue
 
         # print("o:" + decodedLine)
 
         # Use regular expressions to extract time and money
-        time_match = re.search(r"time:\s([\d.]+)", decodedLine)
-        money_match = re.search(r"money:\s([\d.]+)", decodedLine)
-        opp_match = re.search(r"opp:\s([\d.]+)", decodedLine)
+        time_match = re.search(r"time:\s(-?[\d.]+)", decodedLine)
+        money_match = re.search(r"money:\s(-?[\d.]+)", decodedLine)
+        opp_match = re.search(r"opp:\s(-?[\d.]+)", decodedLine)
 
-        # Check if matches were found
+
+# Check if matches were found
         if time_match and money_match and opp_match:
             time = float(time_match.group(1))
             money = float(money_match.group(1))
@@ -103,8 +104,8 @@ def update_plot(frame):
         linePlot2.set_data(x_data, y2_data)
 
         # Set plot limits if desired
-        ax.set_xlim(0, max(x_data) + 1)
-        ax.set_ylim(0, max(max(y1_data), max(y2_data)) + 1)
+        ax.set_xlim(min(x_data), max(x_data) + 1)
+        ax.set_ylim(min(min(y1_data), min(y2_data)), max(max(y1_data), max(y2_data)) + 1)
 
 
 # Start the plot update thread
