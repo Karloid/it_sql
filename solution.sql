@@ -38,6 +38,10 @@ $BODY$
 CREATE OR REPLACE PROCEDURE setInt(keyInp TEXT, valueInp int) AS
 $BODY$
 BEGIN
+    if valueInp is null then
+        delete from "my"."kv_int" where "key" = keyInp;
+        return;
+    end if;
     INSERT INTO "my"."kv_int" ("key", "value")
     VALUES (keyInp, valueInp)
     ON CONFLICT ("key") DO UPDATE SET "value" = EXCLUDED."value";
@@ -66,6 +70,11 @@ $BODY$
 CREATE OR REPLACE PROCEDURE setDouble(keyInp TEXT, valueInp double precision) AS
 $BODY$
 BEGIN
+    if valueInp is null then
+        delete from "my"."kv_double" where "key" = keyInp;
+        return;
+    end if;
+
     INSERT INTO "my"."kv_double" ("key", "value")
     VALUES (keyInp, valueInp)
     ON CONFLICT ("key") DO UPDATE SET "value" = EXCLUDED."value";
@@ -94,6 +103,10 @@ $BODY$
 CREATE OR REPLACE PROCEDURE setText(keyInp TEXT, valueInp text) AS
 $BODY$
 BEGIN
+    if valueInp is null then
+        delete from "my"."kv_text" where "key" = keyInp;
+        return;
+    end if;
     INSERT INTO "my"."kv_text" ("key", "value")
     VALUES (keyInp, valueInp)
     ON CONFLICT ("key") DO UPDATE SET "value" = EXCLUDED."value";
@@ -114,29 +127,35 @@ CREATE PROCEDURE think(player_id INTEGER)
     LANGUAGE PLPGSQL AS
 $$
 declare
-    currentTime                     double precision;
-    myMoney                         double precision;
-    oppMoney                        double precision;
-    ship                            record;
-    itemsMeta                       record;
-    currentContract                 record;
-    currentContractDetails          record;
-    contractDraft                   record;
-    vendor                          record;
-    contractDraftFulfilledQty       double precision;
-    contractDraftRemainToFulfillQty double precision;
-    vendorQtyToBuy                  double precision;
-    parkedShip                      record;
-    currentIslandInfo               record;
-    islandToLoadInfo                record;
-    existingItemStorageQty          double precision;
-    remainingItemsStoredInfo        record;
-    additionalContractInfo          record;
-    myTransferingShips              integer;
-    debugg                          boolean := true;
-    mainContractOfferId             integer;
-    debugContracts                  record;
-    tmpInt                          integer;
+    currentTime                              double precision;
+    myMoney                                  double precision;
+    oppMoney                                 double precision;
+    ship                                     record;
+    itemsMeta                                record;
+    currentContract                          record;
+    currentContractDetails                   record;
+    contractDraft                            record;
+    vendor                                   record;
+    contractDraftFulfilledQty                double precision;
+    contractDraftRemainToFulfillQty          double precision;
+    vendorQtyToBuy                           double precision;
+    additionalContractQty                    double precision;
+    additionalContractCurrentCargoQty        double precision;
+    additionalContractCurrentMissingCargoQty double precision;
+    additionalContractCurrentStorageQty      double precision;
+    parkedShip                               record;
+    currentIslandInfo                        record;
+    islandToLoadInfo                         record;
+    existingItemStorageQty                   double precision;
+    remainingItemsStoredInfo                 record;
+    additionalContractProposeInfo            record;
+    additionalContractActualInfo             record;
+    myTransferingShips                       integer;
+    debugg                                   boolean := true;
+    mainContractOfferId                      integer;
+    debugContracts                           record;
+    tmpInt                                   integer;
+    shouldMove                               integer;
 BEGIN
     select game_time into currentTime from world.global;
     select money into myMoney from world.players where id = player_id;
@@ -146,9 +165,6 @@ BEGIN
     end if;
 
     -- TODO pick best contract to sell if nothing yet
-
-    raise notice '[PLAYER %] getInt(''main_contract_offer'')= %', player_id, getInt('main_contract_offer');
-
 
     select contract into tmpInt from events.contract_started where offer = getInt('main_contract_offer');
     if tmpInt is not null then
@@ -162,7 +178,9 @@ BEGIN
       and c.id = getInt('main_contract');
 
     if currentContract is null then
-        raise notice '[PLAYER %] no contract yet, try find contract, old main contract %', player_id, getInt('main_contract');
+        if debugg then
+            raise notice '[PLAYER %] no contract yet, try find contract, old main contract %', player_id, getInt('main_contract');
+        end if;
 
         -- select largest remaining in storage and try sell it
         select *
@@ -295,19 +313,6 @@ BEGIN
         contractDraftFulfilledQty := existingItemStorageQty;
         contractDraftRemainToFulfillQty := contractDraftRemainToFulfillQty - contractDraftFulfilledQty;
 
-/*        for vendor in
-            select *
-            from world.contractors c
-            where c.type = 'vendor'
-              and c.item = contractDraft.item_id
---              and c.price_per_unit <= contractDraft.price_per_unit
-            order by c.price_per_unit asc
-            loop
-                -- print all vendors
-                raise notice '[PLAYER %] vendor % item % qty % price_per_unit %', player_id, vendor.id, vendor.item,
-                    vendor.quantity, vendor.price_per_unit;
-            end loop;*/
-
         for vendor in
             select *
             from world.contractors c
@@ -355,9 +360,7 @@ BEGIN
         values (contractDraft.id, contractDraftFulfilledQty - 0.000000001)
         returning id into mainContractOfferId;
 
-        raise notice '[PLAYER %] put(''main_contract_offer'')= %', player_id, mainContractOfferId;
         call setInt('main_contract_offer', mainContractOfferId);
-        raise notice '[PLAYER %] after put(''main_contract_offer'')= %', player_id, getInt('main_contract_offer');
 
         return;
     end if;
@@ -459,6 +462,48 @@ BEGIN
           and s.id not in (select ts.ship from world.transferring_ships ts)
         loop
 
+           -- TODO MOVE PENDING CHECKS OUTSIDE OF PARKED SHIP LOOP => THIS WILL FIX BUG PROBABLY
+            if getInt('additionalContractOffer_ship_' || parkedShip.id) is not null then
+                if debugg then
+                    raise notice '[PLAYER %] ship % has additional pending offer %',
+                        player_id, parkedShip.id, getInt('additionalContractOffer_ship_' || parkedShip.id);
+                end if;
+            end if;
+
+            select contract
+            into tmpInt
+            from events.contract_started
+            where offer = getInt('additionalContractOffer_ship_' || parkedShip.id);
+
+            if tmpInt is not null then
+                if debugg then
+                    raise notice '[PLAYER %] ship % offer % was accepted additional contract %',
+                        player_id, parkedShip.id, getInt('additionalContractOffer_ship_' || parkedShip.id), tmpInt;
+                end if;
+                call setInt('additionalContractId_ship_' || parkedShip.id, tmpInt);
+            elseif getInt('additionalContractOffer_ship_' || parkedShip.id) is not null then
+                if debugg then
+                    raise notice '[PLAYER %] WARN ship % additional offer % was rejected!',
+                        player_id, parkedShip.id, getInt('additionalContractOffer_ship_' || parkedShip.id);
+                end if;
+            end if;
+            call setInt('additionalContractOffer_ship_' || parkedShip.id, null);
+
+            select c.id,
+                   c.quantity,
+                   contractors.item,
+                   contractors.island                                   to_island,
+                   coalesce((select sum(cargo.quantity)
+                             from world.cargo cargo
+                             where cargo.ship = parkedShip.ship
+                               and cargo.item = contractors.item), 0.0) currentCargo
+            into additionalContractActualInfo
+            from world.contracts c,
+                 world.contractors contractors
+            where c.id = getInt('additionalContractId_ship_' || parkedShip.id)
+              and contractors.id = c.contractor;
+
+
             select coalesce(sum(storage.quantity), 0.0) storageItemQty
             into currentIslandInfo
             from world.storage storage
@@ -471,7 +516,22 @@ BEGIN
                     player_id, parkedShip.ship, parkedShip.currentCargo,parkedShip.island, currentIslandInfo.storageItemQty;
             end if;
 
-            if parkedShip.island = currentContractDetails.island and parkedShip.currentCargo > 0.0 then
+            if additionalContractActualInfo is not null and
+               parkedShip.island = additionalContractActualInfo.to_island and
+               additionalContractActualInfo.quantity > 0.0 then
+                if debugg then
+                    raise notice '[PLAYER %] ship % is on island % and has additional % items of type % going to transfer, contract id %',
+                        player_id, parkedShip.ship, parkedShip.island,
+                        additionalContractActualInfo.currentCargo,
+                        additionalContractActualInfo.item,
+                        additionalContractActualInfo.id;
+                end if;
+                insert into actions.transfers (ship, item, quantity, direction)
+                values (parkedShip.ship,
+                        additionalContractActualInfo.item,
+                        additionalContractActualInfo.currentCargo,
+                        'unload');
+            elseif parkedShip.island = currentContractDetails.island and parkedShip.currentCargo > 0.0 then
                 -- raise unload notice
                 --    raise notice '[PLAYER %] ship % is on island % and has % items going to unload', player_id, parkedShip.ship, parkedShip.island, parkedShip.currentCargo;
 
@@ -514,25 +574,108 @@ BEGIN
                     --    raise notice '[PLAYER %] ship % is on island % and has % items going to move', player_id, parkedShip.ship, parkedShip.island, parkedShip.currentCargo;
                     -- try find suitable order
 
-                    select vendors.item, vendors.quantity, customers.quantity
-                    into additionalContractInfo
-                    from world.contractors vendors,
-                         world.contractors customers
-                    where vendors.type = 'vendor'
-                      and vendors.item = currentContractDetails.item
-                      and vendors.price_per_unit <= currentContractDetails.price_per_unit
-                      and vendors.quantity > 0.0
-                      and vendors.island = islandToLoadInfo.island
-                      and customers.type = 'customer'
-                      and customers.item = vendors.item
-                      and customers.price_per_unit >= vendors.price_per_unit
-                      and customers.quantity > 0.0
-                      and customers.island = islandToLoadInfo.island
-                    order by customers.price_per_unit * LEAST(vendors.quantity, customers.quantity) -
-                             vendors.price_per_unit * LEAST(vendors.quantity, customers.quantity) desc;
+                    shouldMove := 1;
 
 
-                    call moveToTheNextIsland(player_id, parkedShip.id, islandToLoadInfo.island);
+                    if additionalContractActualInfo is not null then
+                        select coalesce(sum(cargo.quantity), 0.0) cargoQty
+                        into additionalContractCurrentCargoQty
+                        from world.cargo cargo
+                        where cargo.ship = parkedShip.ship
+                          and cargo.item = additionalContractActualInfo.item;
+
+                        select coalesce(sum(storage.quantity), 0.0) cargoQty
+                        into additionalContractCurrentStorageQty
+                        from world.storage storage
+                        where storage.island = parkedShip.island
+                          and storage.item = additionalContractActualInfo.item;
+
+                        if additionalContractCurrentCargoQty >= additionalContractActualInfo.quantity then
+                            if debugg then
+                                raise notice '[PLAYER %] ship % is on island % ready for additional contracts, will go cargoQty %',
+                                    player_id, parkedShip.ship, parkedShip.island, additionalContractCurrentCargoQty;
+                            end if;
+                            shouldMove := 1;
+                        else
+                            shouldMove := 0;
+                            additionalContractCurrentMissingCargoQty :=
+                                        additionalContractActualInfo.quantity - additionalContractCurrentCargoQty;
+
+                            if additionalContractCurrentStorageQty >= additionalContractCurrentMissingCargoQty then
+                                insert into actions.transfers (ship, item, quantity, direction)
+                                values (parkedShip.ship,
+                                        additionalContractActualInfo.item,
+                                        additionalContractCurrentMissingCargoQty,
+                                        'load');
+                            else
+                                insert into actions.offers (contractor, quantity)
+                                values (additionalContractProposeInfo.vendor_id,
+                                        additionalContractCurrentMissingCargoQty);
+                            end if;
+                        end if;
+
+                    else
+                        select vendors.id         vendor_id,
+                               customers.id       customer_id,
+                               vendors.item,
+                               vendors.quantity   vqty,
+                               customers.quantity cqty
+                        into additionalContractProposeInfo
+                        from world.contractors vendors,
+                             world.contractors customers
+                        where vendors.type = 'vendor'
+                          and vendors.quantity > 0.0
+                          and vendors.island = parkedShip.island
+                          and customers.type = 'customer'
+                          and customers.item = vendors.item
+                          and customers.price_per_unit >= vendors.price_per_unit
+                          and customers.quantity > 0.0
+                          and customers.island = islandToLoadInfo.island
+                        order by customers.price_per_unit * LEAST(vendors.quantity, customers.quantity) -
+                                 vendors.price_per_unit * LEAST(vendors.quantity, customers.quantity) desc
+                        limit 1;
+
+                        if additionalContractProposeInfo is not null then
+
+                            select least(ships.capacity
+                                             - coalesce(
+                                                 (select sum(cargo.quantity)
+                                                  from world.cargo cargo
+                                                  where cargo.ship = parkedShip.id),
+                                                 0.0),
+                                         additionalContractProposeInfo.vqty,
+                                         additionalContractProposeInfo.cqty)
+                            into additionalContractQty
+                            from world.ships ships
+                            where ships.id = parkedShip.id;
+
+                            if additionalContractQty > 1.0 then
+                                insert into actions.offers (contractor, quantity)
+                                values (additionalContractProposeInfo.vendor_id, additionalContractQty);
+                                insert into actions.offers (contractor, quantity)
+                                values (additionalContractProposeInfo.customer_id, additionalContractQty)
+                                returning id into tmpInt;
+                                call setInt('additionalContractOffer_ship_' || parkedShip.id, tmpInt);
+                                if debugg then
+                                    raise notice '[PLAYER %] ship % is on island % and can do additional job item % max qty % wait for confirmation offer %',
+                                        player_id, parkedShip.ship,
+                                        parkedShip.island,additionalContractProposeInfo.item,
+                                        LEAST(additionalContractProposeInfo.vqty,
+                                              additionalContractProposeInfo.cqty),
+                                        tmpInt;
+                                end if;
+                            end if;
+                        end if;
+                    end if;
+
+
+                    if shouldMove = 1 then
+                        if debugg then
+                            raise notice '[PLAYER %] ship % is on island % going to move to island %',
+                                player_id, parkedShip.ship, parkedShip.island, islandToLoadInfo.island;
+                        end if;
+                        call moveToTheNextIsland(player_id, parkedShip.id, islandToLoadInfo.island);
+                    end if;
                 else
                     -- TODO BUY HERE?
                     if debugg then
