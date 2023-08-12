@@ -48,7 +48,7 @@ $BODY$
 declare
     debugg boolean := true;
 BEGIN
-    if debugg then raise notice 'setInt % %', keyInp, valueInp; end if;
+    if 1 = 0 then raise notice 'setInt % %', keyInp, valueInp; end if;
     if valueInp is null then
         delete from "my"."kv_int" where "key" = keyInp;
         return;
@@ -83,7 +83,7 @@ $BODY$
 declare
     debugg boolean := true;
 BEGIN
-    if debugg then raise notice 'setDouble % %', keyInp, valueInp; end if;
+    if 1 = 0 then raise notice 'setDouble % %', keyInp, valueInp; end if;
     if valueInp is null then
         delete from "my"."kv_double" where "key" = keyInp;
         return;
@@ -119,7 +119,7 @@ $BODY$
 declare
     debugg boolean := true;
 BEGIN
-    if debugg then raise notice 'setText % %', keyInp, valueInp; end if;
+    if 1 = 0 then raise notice 'setText % %', keyInp, valueInp; end if;
     if valueInp is null then
         delete from "my"."kv_text" where "key" = keyInp;
         return;
@@ -137,7 +137,7 @@ $$
 declare
     debugg boolean := true;
 begin
-    if debugg then raise notice '[PLAYER %] MOVING SHIP % TO ISLAND %', player_id, ship_id, island_id; end if;
+    if 1 = 0 then raise notice '[PLAYER %] MOVING SHIP % TO ISLAND %', player_id, ship_id, island_id; end if;
     insert into actions.ship_moves (ship, destination) values (ship_id, island_id);
 end
 $$ language plpgsql;
@@ -182,7 +182,7 @@ BEGIN
     select game_time into currentTime from world.global;
     select money into myMoney from world.players where id = player_id;
     select money into oppMoney from world.players where id <> player_id order by id limit 1;
-    if debugg then
+    if 1 = 0 then
         raise notice '[PLAYER %]      time: % and money: % opp: %', player_id, currentTime, myMoney, oppMoney;
 
 
@@ -206,7 +206,7 @@ BEGIN
              my.offers offers
         where offerReject.offer = offers.offer
         loop
-            if debugg then
+            if 1 = 0 then
                 raise notice '[PLAYER %] offer % was rejected---', player_id, rejectedOffer.offer;
             end if;
         end loop;
@@ -218,7 +218,7 @@ BEGIN
         --,my.offers offers
         --where contractStarted.offer = offers.offer
         loop
-            if debugg then
+            if 1 = 0 then
                 raise notice '[PLAYER %] offer % was accepted+++, contract %', player_id,
                     startedContract.offer, startedContract.contract;
             end if;
@@ -227,7 +227,7 @@ BEGIN
     -- handle main contract offer
     select contract into tmpInt from events.contract_started where offer = getInt('main_contract_offer');
     if tmpInt is not null then
-        if debugg then
+        if 1 = 0 then
             raise notice '[PLAYER %] main contract offer % was accepted contract %', player_id, getInt('main_contract_offer'), tmpInt;
         end if;
         call setInt('main_contract_id', tmpInt);
@@ -249,7 +249,7 @@ BEGIN
         order by c.quantity desc
         limit 1;
         if currentContract is not null then
-            if debugg then
+            if 1 = 0 then
                 raise notice '[PLAYER %] ! picked current contract from list of active contracts id % contractor % qty %',
                     player_id, currentContract.id, currentContract.contractor, currentContract.quantity;
             end if;
@@ -264,7 +264,7 @@ BEGIN
         select * from world.ships s where s.player = player_id
         loop
             if getInt('additionalContractOffer_ship_' || ship.id) is not null then
-                if debugg then
+                if 1 = 0 then
                     raise notice '[PLAYER %] ship % has additional pending offer %',
                         player_id, ship.id, getInt('additionalContractOffer_ship_' || ship.id);
                 end if;
@@ -275,13 +275,13 @@ BEGIN
                 where offer = getInt('additionalContractOffer_ship_' || ship.id);
 
                 if tmpInt is not null then
-                    if debugg then
+                    if 1 = 0 then
                         raise notice '[PLAYER %] ship % offer % was accepted additional contract %',
                             player_id, ship.id, getInt('additionalContractOffer_ship_' || ship.id), tmpInt;
                     end if;
                     call setInt('additionalContractId_ship_' || ship.id, tmpInt);
                 elseif getInt('additionalContractOffer_ship_' || ship.id) is not null then
-                    if debugg then
+                    if 1 = 0 then
                         raise notice '[PLAYER %] WARN ship % additional offer % was rejected!',
                             player_id, ship.id, getInt('additionalContractOffer_ship_' || ship.id);
                     end if;
@@ -291,7 +291,7 @@ BEGIN
         end loop;
 
     if currentContract is null then
-        if debugg then
+        if 1 = 0 then
             raise notice '[PLAYER %] no contract yet, try find contract, old main contract %', player_id, getInt('main_contract_id');
         end if;
 
@@ -314,7 +314,7 @@ BEGIN
 
         if itemsStoredInfo is not null then
             -- finding customer for remaining stuff
-            if debugg then
+            if 1 = 0 then
                 raise notice '[PLAYER %] found remaining item % qty % try find customer for it', player_id,
                     itemsStoredInfo.id, itemsStoredInfo.remaining;
             end if;
@@ -387,7 +387,7 @@ BEGIN
                                       from world.contractors c
                                       where c.item = best_item.id
                                         and c.type = 'customer');
-            if debugg then
+            if 1 = 0 then
                 raise notice '[PLAYER %] found best item % qty % price % has_not_empty_vendors % total_profit %',
                     player_id, contractDraft.item_id,
                     contractDraft.quantity, contractDraft.price_per_unit, contractDraft.has_not_empty_vendors,
@@ -397,16 +397,16 @@ BEGIN
         end if;
 
         if contractDraft is null then
-            if debugg then raise notice '[PLAYER %] no contract found, need wait for 5 sec', player_id; end if;
+            if 1 = 0 then raise notice '[PLAYER %] no contract found, need wait for 5 sec', player_id; end if;
             insert into actions.wait (until) values (currentTime + 5);
             return;
         end if;
 
 
-        if debugg then
+        if 1 = 0 then
             raise notice '[PLAYER %] best contract possible is item_id % contractor % qty % price_per_unit % max-sum-value %',
                 player_id, contractDraft.item_id, contractDraft.id, contractDraft.quantity, contractDraft.price_per_unit,
-                contractDraft.quantity * contractDraft.price_per_unit;
+                    contractDraft.quantity * contractDraft.price_per_unit;
         end if;
 
         -- todo handle case if no remaining vendors
@@ -436,7 +436,7 @@ BEGIN
             loop
                 --  raise notice '[PLAYER %] vendor % has % items', player_id, vendor.id, vendor.quantity;
                 vendorQtyToBuy := 0.0;
-                if debugg then
+                if 1 = 0 then
                     raise notice '[PLAYER %] vendor % contractDraftRemainToFulfillQty % vendor.quantity %', player_id, vendor.id,
                         contractDraftRemainToFulfillQty, vendor.quantity;
                 end if;
@@ -453,7 +453,7 @@ BEGIN
                 if vendorQtyToBuy > 0.0 then
                     -- insert to offers contractor and quantity
                     -- notice about buying stuff
-                    if debugg then
+                    if 1 = 0 then
                         raise notice '[PLAYER %] buying % items from vendor % by price % sum-buy-value %',
                             player_id, vendorQtyToBuy, vendor.id, vendor.price_per_unit, vendorQtyToBuy * vendor.price_per_unit;
                     end if;
@@ -468,7 +468,7 @@ BEGIN
 
         -- insert sell contract from draftContract
         -- notice about actual placed contract
-        if debugg then
+        if 1 = 0 then
             raise notice '[PLAYER %] actual placed contract, contractor % quantity % item % price % sum-sell-value %',
                 player_id, contractDraft.id, contractDraftFulfilledQty, contractDraft.item_id, contractDraft.price_per_unit, contractDraft.quantity * contractDraft.price_per_unit;
         end if;
@@ -514,10 +514,10 @@ BEGIN
       and s.player = player_id;
 
     if itemsStoredInfo.stored < currentContract.quantity and myTransferingShips = 0 then
-        if debugg then
+        if 1 = 0 then
             raise notice '[PLAYER %] !ERROR! not enough items % need % stored % diff % buy remaining',
                 player_id, currentContractDetails.item, currentContract.quantity, itemsStoredInfo.stored,
-                currentContract.quantity - itemsStoredInfo.stored;
+                    currentContract.quantity - itemsStoredInfo.stored;
         end if;
         -- todo handle case if no remaining vendors
         contractDraftRemainToFulfillQty := currentContract.quantity + 0.000000001;
@@ -525,7 +525,7 @@ BEGIN
         contractDraftFulfilledQty := itemsStoredInfo.stored;
         contractDraftRemainToFulfillQty := contractDraftRemainToFulfillQty - contractDraftFulfilledQty;
 
-        if debugg then
+        if 1 = 0 then
             raise notice '[PLAYER %] buy missing items % contractDraftRemainToFulfillQty % contractDraftFulfilledQty %',
                 player_id, currentContractDetails.item, contractDraftRemainToFulfillQty, contractDraftFulfilledQty;
         end if;
@@ -553,7 +553,7 @@ BEGIN
                 if vendorQtyToBuy > 0.0 then
                     -- insert to offers contractor and quantity
                     -- notice about buying stuff
-                    if debugg then
+                    if 1 = 0 then
                         raise notice '[PLAYER %] missing buying % items from vendor % by price % sum-buy-value %',
                             player_id, vendorQtyToBuy, vendor.id, vendor.price_per_unit, vendorQtyToBuy * vendor.price_per_unit;
                     end if;
@@ -603,7 +603,7 @@ BEGIN
               and storage.item = currentContractDetails.item
               and storage.player = player_id;
 
-            if debugg then
+            if 1 = 0 then
                 raise notice '[PLAYER %] ship % currentCargo % island.id % island.storageItemQty %',
                     player_id, parkedShip.ship, parkedShip.currentCargo, parkedShip.island, currentIslandInfo.storageItemQty;
 
@@ -619,7 +619,7 @@ BEGIN
             if additionalContractActualInfo is not null and
                parkedShip.island = additionalContractActualInfo.to_island and
                additionalContractActualInfo.quantity > 0.0 then
-                if debugg then
+                if 1 = 0 then
                     raise notice '[PLAYER %] ship % is on island % and has additional % items of type % going to transfer, contract id %',
                         player_id, parkedShip.ship, parkedShip.island,
                         additionalContractActualInfo.currentCargo,
@@ -634,7 +634,7 @@ BEGIN
             elseif parkedShip.island = currentContractDetails.island and parkedShip.currentCargo > 0.0 then
                 -- raise unload notice
                 --    raise notice '[PLAYER %] ship % is on island % and has % items going to unload', player_id, parkedShip.ship, parkedShip.island, parkedShip.currentCargo;
-                if debugg then
+                if 1 = 0 then
                     raise notice '[PLAYER %] ship % is on island % and has item % qty % going to UNLOAD',
                         player_id, parkedShip.ship, parkedShip.island, currentContractDetails.item, parkedShip.currentCargo;
                 end if;
@@ -651,7 +651,7 @@ BEGIN
 
             elseif parkedShip.island <> currentContractDetails.island and parkedShip.currentCargo = 0.0
                 and currentIslandInfo.storageItemQty > 0.0 then
-                if debugg then
+                if 1 = 0 then
                     raise notice '[PLAYER %] ship % is on island % and has item % qty % going to LOAD',
                         player_id, parkedShip.ship, parkedShip.island, currentContractDetails.item, currentIslandInfo.storageItemQty;
                 end if;
@@ -695,7 +695,7 @@ BEGIN
                         where storage.island = parkedShip.island
                           and storage.item = additionalContractActualInfo.item;
 
-                        if debugg then
+                        if 1 = 0 then
                             raise notice '[PLAYER %] ship % is on island % handle additional contract % item % qty % cargoQty % storageQty %',
                                 player_id, parkedShip.ship, parkedShip.island,
                                 additionalContractActualInfo.id,
@@ -706,7 +706,7 @@ BEGIN
                         end if;
 
                         if additionalContractCurrentCargoQty >= additionalContractActualInfo.quantity then
-                            if debugg then
+                            if 1 = 0 then
                                 raise notice '[PLAYER %] ship % is on island % ready for deliver additional contract, cargoQty % go to to_island',
                                     player_id, parkedShip.ship, parkedShip.island, additionalContractCurrentCargoQty;
                             end if;
@@ -723,17 +723,17 @@ BEGIN
                                         additionalContractActualInfo.item,
                                         additionalContractCurrentMissingCargoQty,
                                         'load');
-                                if debugg then
+                                if 1 = 0 then
                                     raise notice '[PLAYER %] ship % is on island % LOAD additional item % qty %',
                                         player_id, parkedShip.ship, parkedShip.island, additionalContractActualInfo.item, additionalContractCurrentCargoQty;
                                 end if;
                             else
-                                if debugg then
+                                if 1 = 0 then
                                     raise notice '[PLAYER %] ship % is on island % additional contract not enough items % qty % will request more',
                                         player_id, parkedShip.ship, parkedShip.island, additionalContractActualInfo.item, additionalContractCurrentCargoQty;
                                 end if;
                                 insert into actions.offers (contractor, quantity)
-                                values (additionalContractProposeInfo.vendor_id,  -- TODO FIX THIS BUG
+                                values (additionalContractProposeInfo.vendor_id,
                                         additionalContractCurrentMissingCargoQty)
                                 returning id into tmpInt;
                                 insert into my.offers (offer, time) values (tmpInt, currentTime);
@@ -786,7 +786,7 @@ BEGIN
                                 insert into my.offers (offer, time) values (tmpInt, currentTime);
                                 call setInt('additionalContractOffer_ship_' || parkedShip.id, tmpInt);
                                 shouldMove := 0;
-                                if debugg then
+                                if 1 = 0 then
                                     raise notice '[PLAYER %] ship % is on island % and can do additional job item % max qty % wait for confirmation offer %',
                                         player_id, parkedShip.ship,
                                         parkedShip.island,additionalContractProposeInfo.item,
@@ -800,7 +800,7 @@ BEGIN
 
 
                     if shouldMove = 1 then
-                        if debugg then
+                        if 1 = 0 then
                             raise notice '[PLAYER %] ship % is on island % going to move to island %',
                                 player_id, parkedShip.ship, parkedShip.island, islandToLoadInfo.island;
                         end if;
@@ -808,13 +808,13 @@ BEGIN
                     end if;
                 else
                     -- TODO BUY HERE?
-                    if debugg then
+                    if 1 = 0 then
                         raise notice '[PLAYER %] !ERROR! no islands with items %', player_id, currentContractDetails.item;
                     end if;
                 end if;
 
             else
-                if debugg then
+                if 1 = 0 then
                     raise notice '[PLAYER %] !ERROR! no action found for ship % island % currentCargo %',
                         player_id, parkedShip.id, parkedShip.island, parkedShip.currentCargo;
                 end if;
