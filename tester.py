@@ -1,9 +1,10 @@
+import queue
+import re
 import subprocess
 import threading
-import matplotlib.pyplot as plt
-import queue
+
 import matplotlib.animation as animation
-import re
+import matplotlib.pyplot as plt
 
 # Define a thread-safe queue for data sharing
 data_queue = queue.Queue()
@@ -13,7 +14,7 @@ data_queue = queue.Queue()
 def run_command(index):
     print("started match for seed " + str(index))
     command = 'docker run --rm -i -e SEED=' + str(
- #       index) + ' --mount "type=bind,src=$(pwd)/options.toml,dst=/tmp/options.toml" --mount "type=bind,src=$(pwd)/solution.sql,dst=/tmp/player1.sql" --mount "type=bind,src=$(pwd)/solution_04.sql,dst=/tmp/player2.sql" ghcr.io/all-cups/it_one_cup_sql --solution /tmp/player1.sql --solution /tmp/player2.sql --options /tmp/options.toml'
+        #       index) + ' --mount "type=bind,src=$(pwd)/options.toml,dst=/tmp/options.toml" --mount "type=bind,src=$(pwd)/solution.sql,dst=/tmp/player1.sql" --mount "type=bind,src=$(pwd)/solution_04.sql,dst=/tmp/player2.sql" ghcr.io/all-cups/it_one_cup_sql --solution /tmp/player1.sql --solution /tmp/player2.sql --options /tmp/options.toml'
         index) + ' --mount "type=bind,src=$(pwd)/R2-options.toml,dst=/tmp/options.toml" --mount "type=bind,src=$(pwd)/solution.sql,dst=/tmp/player1.sql" --mount "type=bind,src=$(pwd)/solution_04.sql,dst=/tmp/player2.sql" ghcr.io/all-cups/it_one_cup_sql --solution /tmp/player1.sql --solution /tmp/player2.sql --options /tmp/options.toml'
 
     process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
@@ -50,21 +51,57 @@ def run_command(index):
         money_match = re.search(r"money:\s(-?[\d.]+)", decodedLine)
         opp_match = re.search(r"opp:\s(-?[\d.]+)", decodedLine)
 
+        my_money_per_time_match = re.search(r"myMoneyPerTime=(-?[\d.]+)", decodedLine)
+        opp_money_per_time_match = re.search(r"oppMoneyPerTime=(-?[\d.]+)", decodedLine)
+        total_contract_qty_match = re.search(r"totalContractQty=([\d.]+)", decodedLine)
+        stored_at_customer_qty_match = re.search(r"storedAtCustomerQty=([\d.]+)", decodedLine)
+        parked_cargo_qty_match = re.search(r"parkedCargoQty=([\d.]+)", decodedLine)
+        moved_cargo_qty_match = re.search(r"movedCargoQty=([\d.]+)", decodedLine)
+        total_ship_capacity_match = re.search(r"totalShipCapacity=([\d.]+)", decodedLine)
+        capacity_utilisation_match = re.search(r"capacityUtilisation=(-?[\d.]+)", decodedLine)
 
-# Check if matches were found
+        # Check if matches were found
         if time_match and money_match and opp_match:
+            my_money_per_time = float(my_money_per_time_match.group(1))
+            opp_money_per_time = float(opp_money_per_time_match.group(1))
+            total_contract_qty = float(total_contract_qty_match.group(1))
+            stored_at_customer_qty = float(stored_at_customer_qty_match.group(1))
+            parked_cargo_qty = float(parked_cargo_qty_match.group(1))
+            moved_cargo_qty = float(moved_cargo_qty_match.group(1))
+            total_ship_capacity = float(total_ship_capacity_match.group(1))
+            capacity_utilisation = float(capacity_utilisation_match.group(1))
+
             time = float(time_match.group(1))
             money = float(money_match.group(1))
             oppMoney = float(opp_match.group(1))
 
+            print("\n")
+            #   print("My Money Per Time:", my_money_per_time)
+            #   print("Opponent Money Per Time:", opp_money_per_time)
+            #   print("Total Contract Quantity:", total_contract_qty)
+            #   print("Stored at Customer Quantity:", stored_at_customer_qty)
+            #   print("Parked Cargo Quantity:", parked_cargo_qty)
+            #   print("Moved Cargo Quantity:", moved_cargo_qty)
+            #   print("Total Ship Capacity:", total_ship_capacity)
+            print("Capacity Utilisation:", capacity_utilisation)
+
             # Print the extracted values
-            data_queue.put((index, time, money, oppMoney))
+            data_queue.put((index, time, money, oppMoney, my_money_per_time,
+                            opp_money_per_time,
+                            total_contract_qty,
+                            stored_at_customer_qty,
+                            parked_cargo_qty,
+                            moved_cargo_qty,
+                            total_ship_capacity,
+                            capacity_utilisation
+                            ))
             data_queue.task_done()
 
     process.wait()
 
 
-threadIndex = [0, 1, 2, 3, 4]
+#threadIndex = [0, 1, 2, 3, 4]
+threadIndex = [4]
 
 # Create a thread for each seed running the command
 for index in threadIndex:
@@ -77,11 +114,20 @@ fig, ax = plt.subplots()
 # Initialize empty lists for x and y data
 x_data = []
 y1_data = []
-y2_data = []
+opp_money_data = []
+contracts_qty = []
+utilisation = []
+stored_at_customer_qty_data = []
+cargo_qty_data = []
 
 # Initialize the line plot
 linePlot1, = ax.plot(x_data, y1_data, color='blue')
-linePlot2, = ax.plot(x_data, y2_data, color='red')
+linePlotOppMoney, = ax.plot(x_data, opp_money_data, color='red')
+linePlotContractsQty, = ax.plot(x_data, contracts_qty, color='cyan')
+linePlotUtilisation, = ax.plot(x_data, utilisation, color='magenta')
+linePlotStoredAtCustomerQty, = ax.plot(x_data, stored_at_customer_qty_data, color='#E19898')
+linePlotCargoQty, = ax.plot(x_data, cargo_qty_data, color='#4D3C77')
+
 
 
 # Function to update the plot periodically
@@ -90,22 +136,39 @@ def update_plot(frame):
     # Get a line of data from the queue
     while True:
         try:
-            (index, time, money, oppMoney) = data_queue.get(timeout=0.1)
+            (index, time, money, oppMoney, my_money_per_time,
+             opp_money_per_time,
+             total_contract_qty,
+             stored_at_customer_qty,
+             parked_cargo_qty,
+             moved_cargo_qty,
+             total_ship_capacity,
+             capacity_utilisation
+             ) = data_queue.get(timeout=0.1)
             # Append new data point to the lists
             x_data.append(time)
             y1_data.append(money)
-            y2_data.append(oppMoney)
+            opp_money_data.append(oppMoney)
+            contracts_qty.append(total_contract_qty)
+            utilisation.append(capacity_utilisation * 100000.0)
+            stored_at_customer_qty_data.append(stored_at_customer_qty)
+            cargo_qty_data.append(parked_cargo_qty + moved_cargo_qty)
+
         except queue.Empty:
             break
 
     if len(x_data) > 0:
         # Update the line data
         linePlot1.set_data(x_data, y1_data)
-        linePlot2.set_data(x_data, y2_data)
+        linePlotOppMoney.set_data(x_data, opp_money_data)
+        linePlotContractsQty.set_data(x_data, contracts_qty)
+        linePlotUtilisation.set_data(x_data, utilisation)
+        linePlotStoredAtCustomerQty.set_data(x_data, stored_at_customer_qty_data)
+        linePlotCargoQty.set_data(x_data, cargo_qty_data)
 
         # Set plot limits if desired
         ax.set_xlim(min(x_data), max(x_data) + 1)
-        ax.set_ylim(min(min(y1_data), min(y2_data)), max(max(y1_data), max(y2_data)) + 1)
+        ax.set_ylim(min(min(y1_data), min(opp_money_data)), max(max(y1_data), max(opp_money_data), max(contracts_qty), max(utilisation)) + 1)
 
 
 # Start the plot update thread

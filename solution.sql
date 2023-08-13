@@ -302,31 +302,78 @@ CREATE PROCEDURE think(player_id INTEGER)
     LANGUAGE PLPGSQL AS
 $$
 declare
-    new_var           int;
-    contractorId      int;
-    currentTime       double precision;
-    myMoney           double precision;
-    oppMoney          double precision;
-    ship              record;
-    shipWithState     record;
-    contract          record;
-    contractor        record;
-    contractorInfo    record;
-    bestContractDraft record;
-    vendor            record;
-    vendorQtyToBuy    double precision;
-    debugg            boolean := true;
-    tmpInt            integer;
-    storageQty        double precision;
-    cargoQty          double precision;
-    profitInfo        record;
+    new_var                  int;
+    contractorId             int;
+    currentTime              double precision;
+    myMoney                  double precision;
+    oppMoney                 double precision;
+    ship                     record;
+    shipWithState            record;
+    contract                 record;
+    contractor               record;
+    contractorInfo           record;
+    bestContractDraft        record;
+    vendor                   record;
+    vendorQtyToBuy           double precision;
+    debugg                   boolean := true;
+    tmpInt                   integer;
+    storageQty               double precision;
+    cargoQty                 double precision;
+    profitInfo               record;
+    profitInfoAdditional     record;
+    totalContractQty         double precision;
+    totalStoredAtCustomerQty double precision;
+    -- totalStoredAtVendorQty double precision;
+    totalParkedCargoQty      double precision;
+    totalMovedCargoQty       double precision;
+    totalShipCapacity        double precision;
+
 
 BEGIN
     select game_time into currentTime from world.global;
     select money into myMoney from world.players where id = player_id;
     select money into oppMoney from world.players where id <> player_id order by id limit 1;
     if debugg then
-        raise notice '[PLAYER %]      time: % and money: % opp: %', player_id, currentTime, myMoney, oppMoney;
+
+        select coalesce(sum(con.quantity), 0.0) into totalContractQty from world.contracts con where con.player = player_id;
+
+        select coalesce(sum(storage.quantity), 0.0)
+        into totalStoredAtCustomerQty
+        from world.contracts con,
+             world.contractors contractors,
+             world.storage storage
+        where con.player = player_id
+          and contractors.id = con.contractor
+          and storage.island = contractors.island
+          and storage.item = contractors.item;
+
+        select coalesce(sum(cargo.quantity), 0.0)
+        into totalParkedCargoQty
+        from world.cargo cargo,
+             world.parked_ships parked_ships,
+             world.ships ships
+        where cargo.ship = ships.id
+          and ships.player = player_id
+          and parked_ships.ship = ships.id;
+
+        select coalesce(sum(cargo.quantity), 0.0)
+        into totalMovedCargoQty
+        from world.cargo cargo,
+             world.ships ships,
+             world.moving_ships moving_ships
+        where cargo.ship = ships.id
+          and moving_ships.ship = ships.id
+          and ships.player = player_id;
+
+        select coalesce(sum(ships.capacity), 0.0)
+        into totalShipCapacity
+        from world.ships ships
+        where ships.player = player_id;
+
+
+        raise notice '[PLAYER %]      time: % and money: % opp: % myMoneyPerTime=% oppMoneyPerTime=% totalContractQty=% storedAtCustomerQty=% parkedCargoQty=% movedCargoQty=% totalShipCapacity=% capacityUtilisation=%',
+            player_id, currentTime, myMoney, oppMoney, myMoney / (currentTime + 0.0001), oppMoney / (currentTime + 0.0001),
+            totalContractQty, totalStoredAtCustomerQty, totalParkedCargoQty, totalMovedCargoQty, totalShipCapacity, (totalParkedCargoQty + totalMovedCargoQty) / totalShipCapacity;
 
         select count(*) into tmpInt from world.contracts con where con.player = player_id;
         raise notice '[PLAYER %] current_contracts count %', player_id, tmpInt;
@@ -502,6 +549,46 @@ BEGIN
                     if debugg then
                         raise notice '[PLAYER %] ship % take contract to work %',
                             player_id, shipWithState.id, to_json(profitInfo);
+                    end if;
+
+                    if 1 = 1 and profitInfo.vendorIsland <> shipWithState.island_coalesce then
+                        select vendors.id                                                          vendorId,
+                               customers.id                                                        customerId,
+                               vendors.island                                                      vendorIsland,
+                               least(vendors.quantity, customers.quantity, shipWithState.capacity) finalQuantity,
+                               calculateProfit(
+                                       vendors.id,
+                                       vendors.island,
+                                       vendors.quantity,
+                                       vendors.price_per_unit,
+                                       customers.id,
+                                       customers.island,
+                                       customers.quantity,
+                                       customers.price_per_unit,
+                                       shipWithState.id,
+                                       shipWithState.capacity,
+                                       shipWithState.speed
+                                   )                                                               profitPerTime
+                        into profitInfoAdditional
+                        from world.contractors vendors,
+                             world.contractors customers
+                        where vendors.island = shipWithState.island_coalesce
+                          and customers.island = profitInfo.vendorIsland
+                          and vendors.item = customers.item
+                          and vendors.type = 'vendor'
+                          and customers.type = 'customer'
+                          and customers.id not in (select ac.contractor from my.acquired_contractors ac)
+                        order by profitPerTime desc
+                        limit 1;
+
+                        if profitInfoAdditional is not null and profitInfoAdditional.profitPerTime > 0.0 then
+                            if debugg then
+                                raise notice '[PLAYER %] ship % take additional profit contract to work %',
+                                    player_id, shipWithState.id, to_json(profitInfoAdditional);
+                            end if;
+                            profitInfo := profitInfoAdditional;
+                        end if;
+
                     end if;
 
                     insert into actions.offers (contractor, quantity)
