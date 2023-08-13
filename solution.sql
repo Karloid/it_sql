@@ -37,6 +37,28 @@ create table "my"."acquired_contractors"
 (
     "contractor" integer not null primary key
 );
+/*
+
+ALTER TABLE actions.offers
+    ADD CONSTRAINT offers_contractor_key UNIQUE (contractor);
+
+CREATE OR REPLACE FUNCTION update_offer_quantity()
+    RETURNS TRIGGER AS
+$$
+BEGIN
+    UPDATE actions.offers
+    SET quantity = actions.offers.quantity + NEW.quantity
+    WHERE actions.offers.contractor = NEW.contractor;
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER update_quantity_trigger
+    BEFORE INSERT
+    ON actions.offers
+    FOR EACH ROW
+EXECUTE FUNCTION update_offer_quantity();*/
+
 
 create or replace procedure acquireContractor(contractorId integer) as
 $$
@@ -327,6 +349,10 @@ declare
     totalParkedCargoQty      double precision;
     totalMovedCargoQty       double precision;
     totalShipCapacity        double precision;
+    customerQty              double precision;
+    customerPricePerUnit     double precision;
+    vendorQty                double precision;
+    vendorPricePerUnit       double precision;
 
 
 BEGIN
@@ -335,7 +361,10 @@ BEGIN
     select money into oppMoney from world.players where id <> player_id order by id limit 1;
     if debugg then
 
-        select coalesce(sum(con.quantity), 0.0) into totalContractQty from world.contracts con where con.player = player_id;
+        select coalesce(sum(con.quantity), 0.0)
+        into totalContractQty
+        from world.contracts con
+        where con.player = player_id;
 
         select coalesce(sum(storage.quantity), 0.0)
         into totalStoredAtCustomerQty
@@ -386,6 +415,32 @@ BEGIN
 
         select count(*) into tmpInt from events.contract_started contractStarted;
         raise notice '[PLAYER %] contract_started count %', player_id, tmpInt;
+
+        -- log top customer
+        -- fill and log customerQty
+        -- customerPricePerUnit
+        -- vendorQty
+        -- vendorPricePerUnit
+
+        select con.quantity
+        into customerQty
+        from world.contractors con
+        where con.id = 7;
+        select con.price_per_unit
+        into customerPricePerUnit
+        from world.contractors con
+        where con.id = 7;
+        select con.quantity
+        into vendorQty
+        from world.contractors con
+        where con.id = 91;
+        select con.price_per_unit
+        into vendorPricePerUnit
+        from world.contractors con
+        where con.id = 91;
+        raise notice '[PLAYER %] customer 7, vendor 9 %;%;%;%', player_id, customerQty, customerPricePerUnit, vendorQty, vendorPricePerUnit;
+
+
     end if;
 
     -- handle initial setup of states
@@ -551,7 +606,7 @@ BEGIN
                             player_id, shipWithState.id, to_json(profitInfo);
                     end if;
 
-                    if 1 = 1 and profitInfo.vendorIsland <> shipWithState.island_coalesce then
+                    /*if 1 = 0 and profitInfo.vendorIsland <> shipWithState.island_coalesce then
                         select vendors.id                                                          vendorId,
                                customers.id                                                        customerId,
                                vendors.island                                                      vendorIsland,
@@ -589,18 +644,26 @@ BEGIN
                             profitInfo := profitInfoAdditional;
                         end if;
 
-                    end if;
+                    end if;  */
 
                     insert into actions.offers (contractor, quantity)
                     values (profitInfo.vendorId, profitInfo.finalQuantity)
+         --           on conflict do nothing
                     returning id into tmpInt;
-                    insert into my.offers (offer, time) values (tmpInt, currentTime);
+         /*           update world.contractors
+                    set quantity = quantity - profitInfo.finalQuantity
+                    where id = profitInfo.vendorId;*/
+                    --insert into my.offers (offer, time) values (tmpInt, currentTime);
 
                     insert into actions.offers (contractor, quantity)
                     values (profitInfo.customerId, profitInfo.finalQuantity)
+           --         on conflict do nothing
                     returning id into tmpInt;
-                    insert into my.offers (offer, time) values (tmpInt, currentTime);
-                    call acquireContractor(profitInfo.customerId);
+             /*       update world.contractors
+                    set quantity = quantity - profitInfo.finalQuantity
+                    where id = profitInfo.customerId;*/
+                    --insert into my.offers (offer, time) values (tmpInt, currentTime);
+                    -- call acquireContractor(profitInfo.customerId);
 
                     call setState(shipWithState.id, 'moving_to_load', currentTime);
                     call setInt('ship_contractor__' || shipWithState.id, profitInfo.customerId);
@@ -676,8 +739,12 @@ BEGIN
                         else
                             insert into actions.offers (contractor, quantity)
                             values (profitInfo.vendorId, profitInfo.finalQuantity)
+                         --   on conflict do nothing
                             returning id into tmpInt;
-                            insert into my.offers (offer, time) values (tmpInt, currentTime);
+                          /*  update world.contractors
+                            set quantity = quantity - profitInfo.finalQuantity
+                            where id = profitInfo.vendorId;*/
+                            --insert into my.offers (offer, time) values (tmpInt, currentTime);
 
                             call setState(shipWithState.id, 'moving_to_load', currentTime);
                             if profitInfo.vendorIsland <> shipWithState.island_coalesce then
