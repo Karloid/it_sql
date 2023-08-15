@@ -71,7 +71,7 @@ $$
 declare
     debugg boolean := true;
 begin
-    if debugg then raise notice 'acquireContractor %', contractorId; end if;
+    if 1 = 0 then raise notice 'acquireContractor %', contractorId; end if;
     insert into "my"."acquired_contractors" ("contractor") values (contractorId) on conflict do nothing;
 end
 $$ language plpgsql;
@@ -91,7 +91,7 @@ $$
 declare
     debugg boolean := true;
 BEGIN
-    if debugg then raise notice 'setState % %', shipId, stateInp; end if;
+    if 1 = 0 then raise notice 'setState % %', shipId, stateInp; end if;
     if stateInp is null then
         delete from "my"."ship_states" where "ship" = shipId;
         return;
@@ -129,7 +129,7 @@ $BODY$
 declare
     debugg boolean := true;
 BEGIN
-    if debugg then raise notice 'setInt % %', keyInp, valueInp; end if;
+    if 1 = 0 then raise notice 'setInt % %', keyInp, valueInp; end if;
     if valueInp is null then
         delete from "my"."kv_int" where "key" = keyInp;
         return;
@@ -164,7 +164,7 @@ $BODY$
 declare
     debugg boolean := true;
 BEGIN
-    if debugg then raise notice 'setDouble % %', keyInp, valueInp; end if;
+    if 1 = 0 then raise notice 'setDouble % %', keyInp, valueInp; end if;
     if valueInp is null then
         delete from "my"."kv_double" where "key" = keyInp;
         return;
@@ -200,7 +200,7 @@ $BODY$
 declare
     debugg boolean := true;
 BEGIN
-    if debugg then raise notice 'setText % %', keyInp, valueInp; end if;
+    if 1 = 0 then raise notice 'setText % %', keyInp, valueInp; end if;
     if valueInp is null then
         delete from "my"."kv_text" where "key" = keyInp;
         return;
@@ -218,7 +218,7 @@ $$
 declare
     debugg boolean := true;
 begin
-    if debugg then raise notice '[PLAYER %] MOVING SHIP % TO ISLAND %', player_id, ship_id, island_id; end if;
+    if 1 = 0 then raise notice '[PLAYER %] MOVING SHIP % TO ISLAND %', player_id, ship_id, island_id; end if;
     insert into actions.ship_moves (ship, destination) values (ship_id, island_id);
 end
 $$ language plpgsql;
@@ -444,7 +444,7 @@ BEGIN
     select game_time into currentTime from world.global;
     select money into myMoney from world.players where id = player_id;
     select money into oppMoney from world.players where id <> player_id order by id limit 1;
-    if debugg then
+    if 1 = 0 then
 
         select coalesce(sum(con.quantity), 0.0)
         into totalContractQty
@@ -540,7 +540,7 @@ BEGIN
 
     -- handle initial setup of states
     if not exists (select * from my.ship_states) then
-        if debugg then raise notice '[PLAYER %] setting initial state for ships', player_id; end if;
+        if 1 = 0 then raise notice '[PLAYER %] setting initial state for ships', player_id; end if;
         for ship in select * from world.ships where player = player_id
             loop
                 call setState(ship.id, 'idle', currentTime);
@@ -568,7 +568,7 @@ BEGIN
                                    join world.contracts con on con.contractor = c.id and con.player = player_id
                           where ac.contractor = c.id
         loop
-            /*   if debugg then
+            /*   if 1 = 0 then
                    raise notice '[PLAYER %] acquired contractors info, contractor % island % item % payment sum % qty %',
                        player_id, contractorInfo.contractor, contractorInfo.island, contractorInfo.item,
                        contractorInfo.payment_sum, contractorInfo.quantity;
@@ -576,7 +576,7 @@ BEGIN
         end loop;
 
 
-    if debugg then
+    if 1 = 0 then
         raise notice '[PLAYER %] check best contracts acquired contractors count %', player_id, (select count(*) from my.acquired_contractors);
         --insert into actions.wait (until) values (currentTime + 1);
 
@@ -625,7 +625,7 @@ BEGIN
         where s.player = player_id
         order by s.id
         loop
-            if debugg then
+            if 1 = 0 then
                 raise notice '[PLAYER %] ship % state % island % shipContractor % contains item % qty % game_state %',
                     player_id, shipWithState.id, shipWithState.state, shipWithState.island_coalesce, shipWithState.shipContractor,
                     shipWithState.item, shipWithState.quantity, shipWithState.game_state;
@@ -656,7 +656,7 @@ BEGIN
           and ps.island is not null
         order by s.capacity * s.speed asc
         loop
-            if debugg then
+            if 1 = 0 then
                 raise notice '[PLAYER %] handle parked states ship % state % island % contains item % qty % game_state %',
                     player_id, shipWithState.id, shipWithState.state, shipWithState.island_coalesce,
                     shipWithState.item, shipWithState.quantity, shipWithState.game_state;
@@ -682,11 +682,11 @@ BEGIN
                     limit 1;
 
                     if contractorToPick is null then
-                        if debugg then
+                        if 1 = 0 then
                             raise notice '[PLAYER %] ship % no contractors to pick', player_id, shipWithState.id;
                         end if;
                     else
-                        if debugg then
+                        if 1 = 0 then
                             raise notice '[PLAYER %] ship % pick contractor %', player_id, shipWithState.id, contractorToPick.contractor;
                         end if;
 
@@ -733,7 +733,7 @@ BEGIN
 
                 /*
                 if profitInfo.profitPerTime > 0.0 then
-                    if debugg then
+                    if 1 = 0 then
                         raise notice '[PLAYER %] ship % take contract to work %',
                             player_id, shipWithState.id, to_json(profitInfo);
                     end if;
@@ -769,7 +769,7 @@ BEGIN
                 select * from world.contracts contracts where contracts.contractor = contractorId into contract;
 
                 if contract is null then
-                    if debugg then
+                    if 1 = 0 then
                         raise notice '[PLAYER %] WARN ship % contract % not found, back to idle', player_id, shipWithState.id, contractorId;
                     end if;
                     call setState(shipWithState.id, 'idle', currentTime);
@@ -825,7 +825,7 @@ BEGIN
                         limit 1;
 
                         if vendorInfo is null then
-                            if debugg then
+                            if 1 = 0 then
                                 raise notice '[PLAYER %] !ERROR! ship % contractorId % cannot find profitInfo + vendor, back to idle',
                                     player_id, shipWithState.id, contractorId;
                             end if;
@@ -833,7 +833,7 @@ BEGIN
                             insert into actions.wait (until) values (currentTime + 0.1);
 
                         else
-                            if debugg then
+                            if 1 = 0 then
                                 raise notice '[PLAYER %] ship % found vendor % island % do offer for %',
                                     player_id, shipWithState.id, vendorInfo.id, vendorInfo.island,
                                     least(vendorInfo.quantity, contract.quantity - storageQty);
@@ -856,7 +856,7 @@ BEGIN
                     else
                         -- ok, we have enough items in storage, lets load them
                         -- notice about loading stuff
-                        if debugg then
+                        if 1 = 0 then
                             raise notice '[PLAYER %] ship % loading % items from storage by payment_sum %',
                                 player_id, shipWithState.id, storageQty, contract.payment_sum;
                         end if;
@@ -883,7 +883,7 @@ BEGIN
                 into cargoQty;
 
                 if cargoQty < 0.001 then
-                    if debugg then
+                    if 1 = 0 then
                         raise notice '[PLAYER %] WARN ship % not enough items in cargo, back to ''moving_to_load''', player_id, shipWithState.id;
                     end if;
                     call setState(shipWithState.id, 'moving_to_load', currentTime);
@@ -908,7 +908,7 @@ BEGIN
 
                 call setState(shipWithState.id, 'idle', currentTime);
             else
-                if debugg then
+                if 1 = 0 then
                     raise notice '[PLAYER %] ship % unknown and unhandled state %', player_id, shipWithState.id, shipWithState.state;
                 end if;
             end if;

@@ -75,7 +75,7 @@ def run_command(index):
             money = float(money_match.group(1))
             oppMoney = float(opp_match.group(1))
 
-            print("\n")
+           # print("\n")
             #   print("My Money Per Time:", my_money_per_time)
             #   print("Opponent Money Per Time:", opp_money_per_time)
             #   print("Total Contract Quantity:", total_contract_qty)
@@ -83,7 +83,7 @@ def run_command(index):
             #   print("Parked Cargo Quantity:", parked_cargo_qty)
             #   print("Moved Cargo Quantity:", moved_cargo_qty)
             #   print("Total Ship Capacity:", total_ship_capacity)
-            print("Capacity Utilisation:", capacity_utilisation)
+            # print("Capacity Utilisation:", capacity_utilisation)
 
             # Print the extracted values
             data_queue.put((index, time, money, oppMoney, my_money_per_time,
@@ -100,8 +100,8 @@ def run_command(index):
     process.wait()
 
 
-#threadIndex = [0, 1, 2, 3, 4]
-threadIndex = [4]
+threadIndex = [0, 1, 2, 3, 4, 5]
+#threadIndex = [4]
 
 # Create a thread for each seed running the command
 for index in threadIndex:
