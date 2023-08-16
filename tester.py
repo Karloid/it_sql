@@ -10,6 +10,9 @@ import matplotlib.pyplot as plt
 data_queue = queue.Queue()
 
 
+indexOfRunnerToWatch = 43241
+threadIndex = [indexOfRunnerToWatch, 111, 222, 3333, 44445345, 5312312]
+
 # Define a function to run the command
 def run_command(index):
     print("started match for seed " + str(index))
@@ -41,7 +44,8 @@ def run_command(index):
                 else:
                     print("FINISH: " + str(index) + " player 1 won with score " + str(
                         firstPlayerScore) + " against " + str(score) + " diff: " + str(scoreDiff))
-        if index != 4:
+
+        if index != indexOfRunnerToWatch:
             continue
 
         # print("o:" + decodedLine)
@@ -99,9 +103,6 @@ def run_command(index):
 
     process.wait()
 
-
-threadIndex = [0, 1, 2, 3, 4, 5]
-#threadIndex = [4]
 
 # Create a thread for each seed running the command
 for index in threadIndex:
