@@ -129,7 +129,7 @@ $BODY$
 declare
     debugg boolean := true;
 BEGIN
-    if 1 = 1 then raise notice 'setInt % %', keyInp, valueInp; end if;
+    if 1 = 0 then raise notice 'setInt % %', keyInp, valueInp; end if;
     if valueInp is null then
         delete from "my"."kv_int" where "key" = keyInp;
         return;
@@ -448,7 +448,7 @@ BEGIN
     select game_time into currentTime from world.global;
     select money into myMoney from world.players where id = player_id;
     select money into oppMoney from world.players where id <> player_id order by id limit 1;
-    if 1 = 1 then
+    if 1 = 0 then
 
         select coalesce(sum(con.quantity), 0.0)
         into totalContractQty
@@ -463,7 +463,8 @@ BEGIN
         where con.player = player_id
           and contractors.id = con.contractor
           and storage.island = contractors.island
-          and storage.item = contractors.item;
+          and storage.item = contractors.item
+          and storage.player = player_id;
 
         select coalesce(sum(storage.quantity), 0.0)
         into totalStoredAtOtherQty
@@ -473,7 +474,8 @@ BEGIN
         where con.player = player_id
           and contractors.id = con.contractor
           and storage.island <> contractors.island
-          and storage.item = contractors.item;
+          and storage.item = contractors.item
+          and storage.player = player_id;
 
         select coalesce(sum(cargo.quantity), 0.0)
         into totalParkedCargoQty
@@ -499,21 +501,21 @@ BEGIN
         where ships.player = player_id;
 
 
-      /*  raise notice '[PLAYER %]      time: % and money: % opp: % myMoneyPerTime=% oppMoneyPerTime=% totalContractQty=% storedAtCustomerQty=% storedAtOtherQty=% parkedCargoQty=% movedCargoQty=% totalShipCapacity=% capacityUtilisation=%',
+        raise notice '[PLAYER %]      time: % and money: % opp: % myMoneyPerTime=% oppMoneyPerTime=% totalContractQty=% storedAtCustomerQty=% storedAtOtherQty=% parkedCargoQty=% movedCargoQty=% totalShipCapacity=% capacityUtilisation=%',
             player_id, currentTime, myMoney, oppMoney, myMoney / (currentTime + 0.0001), oppMoney / (currentTime + 0.0001),
             totalContractQty, totalStoredAtCustomerQty, totalStoredAtOtherQty, totalParkedCargoQty, totalMovedCargoQty, totalShipCapacity, (totalParkedCargoQty + totalMovedCargoQty) / totalShipCapacity;
-*/
+
         select count(*) into tmpInt from world.contracts con where con.player = player_id;
-   --     raise notice '[PLAYER %] current_contracts count %', player_id, tmpInt;
+        raise notice '[PLAYER %] current_contracts count %', player_id, tmpInt;
 
         select count(*) into tmpInt from events.contract_completed contract_completed;
-   --     raise notice '[PLAYER %] contract_completed count %', player_id, tmpInt;
+        raise notice '[PLAYER %] contract_completed count %', player_id, tmpInt;
 
         select count(*) into tmpInt from events.offer_rejected contractRejected;
-  --      raise notice '[PLAYER %] offer_rejected count %', player_id, tmpInt;
+        raise notice '[PLAYER %] offer_rejected count %', player_id, tmpInt;
 
         select count(*) into tmpInt from events.contract_started contractStarted;
-      --  raise notice '[PLAYER %] contract_started count %', player_id, tmpInt;
+        raise notice '[PLAYER %] contract_started count %', player_id, tmpInt;
 
         -- log top customer
         -- fill and log customerQty
@@ -746,8 +748,9 @@ BEGIN
                     -- check if enough in storage
                     select coalesce(sum(quantity), 0.0)
                     from world.storage storage
-                    where item = contractorInfo2.item
+                    where storage.item = contractorInfo2.item
                       and storage.island = shipWithState.island_coalesce
+                      and storage.player = player_id
                     into currentIslandStorageQty;
 
 
@@ -794,7 +797,7 @@ BEGIN
                         order by profitPerTime desc
                         limit 1;*/
 
-                        -- TODO find islands with big storage and not in the list of current customers + item
+                        -- TODO find islands with big storage and not in the list of current customers + item  111!!!!
 
                         select *
                         into vendorInfo
@@ -824,6 +827,7 @@ BEGIN
                             from world.storage storage
                             where storage.island = vendorInfo.island
                               and storage.item = vendorInfo.item
+                              and storage.player = player_id
                             into storageQtyOnVendorIsland;
 
                             -- populate remainedQtyForContract
@@ -839,6 +843,7 @@ BEGIN
                             from world.storage storage
                             where storage.island = contractorInfo2.island
                               and storage.item = vendorInfo.item
+                              and storage.player = player_id
                             into remainedQtyForContract;
 
                             qtyToBuyFromVendor :=
@@ -868,8 +873,8 @@ BEGIN
                         -- ok, we have enough items in storage, lets load them
                         -- notice about loading stuff
                         if 1 = 0 then
-                            raise notice '[PLAYER %] ship % loading % items from storage by payment_sum %',
-                                player_id, shipWithState.id, currentIslandStorageQty, contractInfo.payment_sum;
+                            raise notice '[PLAYER %] ship % loading % items item % from storage by payment_sum %',
+                                player_id, shipWithState.id, currentIslandStorageQty, contractorInfo2.item, contractInfo.payment_sum;
                         end if;
 
                         insert into actions.transfers (ship, item, quantity, direction)

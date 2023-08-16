@@ -71,7 +71,7 @@ $$
 declare
     debugg boolean := true;
 begin
-    if debugg then raise notice 'acquireContractor %', contractorId; end if;
+    if 1 = 0 then raise notice 'acquireContractor %', contractorId; end if;
     insert into "my"."acquired_contractors" ("contractor") values (contractorId) on conflict do nothing;
 end
 $$ language plpgsql;
@@ -91,7 +91,7 @@ $$
 declare
     debugg boolean := true;
 BEGIN
-    if debugg then raise notice 'setState % %', shipId, stateInp; end if;
+    if 1 = 0 then raise notice 'setState % %', shipId, stateInp; end if;
     if stateInp is null then
         delete from "my"."ship_states" where "ship" = shipId;
         return;
@@ -129,7 +129,7 @@ $BODY$
 declare
     debugg boolean := true;
 BEGIN
-    if debugg then raise notice 'setInt % %', keyInp, valueInp; end if;
+    if 1 = 0 then raise notice 'setInt % %', keyInp, valueInp; end if;
     if valueInp is null then
         delete from "my"."kv_int" where "key" = keyInp;
         return;
@@ -164,7 +164,7 @@ $BODY$
 declare
     debugg boolean := true;
 BEGIN
-    if debugg then raise notice 'setDouble % %', keyInp, valueInp; end if;
+    if 1 = 0 then raise notice 'setDouble % %', keyInp, valueInp; end if;
     if valueInp is null then
         delete from "my"."kv_double" where "key" = keyInp;
         return;
@@ -200,7 +200,7 @@ $BODY$
 declare
     debugg boolean := true;
 BEGIN
-    if debugg then raise notice 'setText % %', keyInp, valueInp; end if;
+    if 1 = 0 then raise notice 'setText % %', keyInp, valueInp; end if;
     if valueInp is null then
         delete from "my"."kv_text" where "key" = keyInp;
         return;
@@ -218,7 +218,7 @@ $$
 declare
     debugg boolean := true;
 begin
-    if debugg then raise notice '[PLAYER %] MOVING SHIP % TO ISLAND %', player_id, ship_id, island_id; end if;
+    if 1 = 0 then raise notice '[PLAYER %] MOVING SHIP % TO ISLAND %', player_id, ship_id, island_id; end if;
     insert into actions.ship_moves (ship, destination) values (ship_id, island_id);
 end
 $$ language plpgsql;
@@ -448,7 +448,7 @@ BEGIN
     select game_time into currentTime from world.global;
     select money into myMoney from world.players where id = player_id;
     select money into oppMoney from world.players where id <> player_id order by id limit 1;
-    if debugg then
+    if 1 = 0 then
 
         select coalesce(sum(con.quantity), 0.0)
         into totalContractQty
@@ -463,7 +463,8 @@ BEGIN
         where con.player = player_id
           and contractors.id = con.contractor
           and storage.island = contractors.island
-          and storage.item = contractors.item;
+          and storage.item = contractors.item
+          and storage.player = player_id;
 
         select coalesce(sum(storage.quantity), 0.0)
         into totalStoredAtOtherQty
@@ -473,7 +474,8 @@ BEGIN
         where con.player = player_id
           and contractors.id = con.contractor
           and storage.island <> contractors.island
-          and storage.item = contractors.item;
+          and storage.item = contractors.item
+          and storage.player = player_id;
 
         select coalesce(sum(cargo.quantity), 0.0)
         into totalParkedCargoQty
@@ -504,16 +506,16 @@ BEGIN
             totalContractQty, totalStoredAtCustomerQty, totalStoredAtOtherQty, totalParkedCargoQty, totalMovedCargoQty, totalShipCapacity, (totalParkedCargoQty + totalMovedCargoQty) / totalShipCapacity;
 
         select count(*) into tmpInt from world.contracts con where con.player = player_id;
-        raise notice '[PLAYER %] current_contracts count %', player_id, tmpInt;
+      --  raise notice '[PLAYER %] current_contracts count %', player_id, tmpInt;
 
         select count(*) into tmpInt from events.contract_completed contract_completed;
-        raise notice '[PLAYER %] contract_completed count %', player_id, tmpInt;
+      --  raise notice '[PLAYER %] contract_completed count %', player_id, tmpInt;
 
         select count(*) into tmpInt from events.offer_rejected contractRejected;
-        raise notice '[PLAYER %] offer_rejected count %', player_id, tmpInt;
+     --   raise notice '[PLAYER %] offer_rejected count %', player_id, tmpInt;
 
         select count(*) into tmpInt from events.contract_started contractStarted;
-        raise notice '[PLAYER %] contract_started count %', player_id, tmpInt;
+     --   raise notice '[PLAYER %] contract_started count %', player_id, tmpInt;
 
         -- log top customer
         -- fill and log customerQty
@@ -544,7 +546,7 @@ BEGIN
 
     -- handle initial setup of states
     if not exists (select * from my.ship_states) then
-        if debugg then raise notice '[PLAYER %] setting initial state for ships', player_id; end if;
+        if 1 = 0 then raise notice '[PLAYER %] setting initial state for ships', player_id; end if;
         for ship in select * from world.ships where player = player_id
             loop
                 call setState(ship.id, 'idle', currentTime);
@@ -572,7 +574,7 @@ BEGIN
                                    join world.contracts con on con.contractor = c.id and con.player = player_id
                           where ac.contractor = c.id
         loop
-            /*   if debugg then
+            /*   if 1 = 0 then
                    raise notice '[PLAYER %] acquired contractors info, contractor % island % item % payment sum % qty %',
                        player_id, contractorInfo.contractor, contractorInfo.island, contractorInfo.item,
                        contractorInfo.payment_sum, contractorInfo.quantity;
@@ -580,7 +582,7 @@ BEGIN
         end loop;
 
 
-    if debugg then
+    if 1 = 0 then
         raise notice '[PLAYER %] check best contracts acquired contractors count %', player_id, (select count(*) from my.acquired_contractors);
         --insert into actions.wait (until) values (currentTime + 1);
 
@@ -603,7 +605,7 @@ BEGIN
                 continue;
             end if;
 
-            if debugg then
+            if 1 = 0 then
                 raise notice '[PLAYER %] new contractor customerProfit %', player_id, to_json(customerRichInfo);
             end if;
 
@@ -635,7 +637,7 @@ BEGIN
         where s.player = player_id
         order by s.id
         loop
-            if debugg then
+            if 1 = 0 then
                 raise notice '[PLAYER %] ship % state % island % shipContractor % contains item % qty % game_state %',
                     player_id, shipWithState.id, shipWithState.state, shipWithState.island_coalesce, shipWithState.shipContractor,
                     shipWithState.item, shipWithState.quantity, shipWithState.game_state;
@@ -666,7 +668,7 @@ BEGIN
           and ps.island is not null
         order by s.capacity * s.speed asc
         loop
-            if debugg then
+            if 1 = 0 then
                 raise notice '[PLAYER %] handle parked states ship % state % island % contains item % qty % game_state %',
                     player_id, shipWithState.id, shipWithState.state, shipWithState.island_coalesce,
                     shipWithState.item, shipWithState.quantity, shipWithState.game_state;
@@ -692,11 +694,11 @@ BEGIN
                     limit 1;
 
                     if contractorToPick is null then
-                        if debugg then
+                        if 1 = 0 then
                             raise notice '[PLAYER %] ship % no contractors to pick', player_id, shipWithState.id;
                         end if;
                     else
-                        if debugg then
+                        if 1 = 0 then
                             raise notice '[PLAYER %] ship % pick contractor %', player_id, shipWithState.id, contractorToPick.contractor;
                         end if;
 
@@ -725,7 +727,7 @@ BEGIN
                 select * from world.contracts contracts where contracts.contractor = contractorId into contractInfo;
 
                 if contractInfo is null then
-                    if debugg then
+                    if 1 = 0 then
                         raise notice '[PLAYER %] WARN ship % contract % not found, back to idle', player_id, shipWithState.id, contractorId;
                     end if;
                     call setState(shipWithState.id, 'idle', currentTime);
@@ -746,13 +748,14 @@ BEGIN
                     -- check if enough in storage
                     select coalesce(sum(quantity), 0.0)
                     from world.storage storage
-                    where item = contractorInfo2.item
+                    where storage.item = contractorInfo2.item
                       and storage.island = shipWithState.island_coalesce
+                      and storage.player = player_id
                     into currentIslandStorageQty;
 
 
                     if shipWithState.item is not null and shipWithState.item <> contractorInfo.item then
-                        if debugg then
+                        if 1 = 0 then
                             raise notice '[PLAYER %] SHIP-INFO ship % item % not equal to contract item %, unload right here qty %',
                                 player_id, shipWithState.id, shipWithState.item, contractorInfo.item, shipWithState.quantity;
                         end if;
@@ -794,7 +797,7 @@ BEGIN
                         order by profitPerTime desc
                         limit 1;*/
 
-                        -- TODO find islands with big storage and not in the list of current customers + item
+                        -- TODO find islands with big storage and not in the list of current customers + item  111!!!!
 
                         select *
                         into vendorInfo
@@ -811,7 +814,7 @@ BEGIN
                         limit 1;
 
                         if vendorInfo is null then
-                            if debugg then
+                            if 1 = 0 then
                                 raise notice '[PLAYER %] !ERROR! ship % contractorId % cannot find profitInfo + vendor, back to idle',
                                     player_id, shipWithState.id, contractorId;
                             end if;
@@ -824,6 +827,7 @@ BEGIN
                             from world.storage storage
                             where storage.island = vendorInfo.island
                               and storage.item = vendorInfo.item
+                              and storage.player = player_id
                             into storageQtyOnVendorIsland;
 
                             -- populate remainedQtyForContract
@@ -839,13 +843,14 @@ BEGIN
                             from world.storage storage
                             where storage.island = contractorInfo2.island
                               and storage.item = vendorInfo.item
+                              and storage.player = player_id
                             into remainedQtyForContract;
 
                             qtyToBuyFromVendor :=
                                     least(vendorInfo.quantity, shipWithState.capacity,
                                           greatest(30.0, remainedQtyForContract - storageQtyOnVendorIsland));
 
-                            if debugg then
+                            if 1 = 0 then
                                 raise notice '[PLAYER %] ship % this_island_wait_items % currentIslandStorageQty % found vendor % island % do offer for % storageQtyOnVendorIsland % remainedQtyForContract %',
                                     player_id, shipWithState.id, currentIslandInfo.this_island_wait_items, currentIslandStorageQty, vendorInfo.id, vendorInfo.island,
                                     qtyToBuyFromVendor, storageQtyOnVendorIsland, remainedQtyForContract;
@@ -867,9 +872,9 @@ BEGIN
                     else
                         -- ok, we have enough items in storage, lets load them
                         -- notice about loading stuff
-                        if debugg then
-                            raise notice '[PLAYER %] ship % loading % items from storage by payment_sum %',
-                                player_id, shipWithState.id, currentIslandStorageQty, contractInfo.payment_sum;
+                        if 1 = 0 then
+                            raise notice '[PLAYER %] ship % loading % items item % from storage by payment_sum %',
+                                player_id, shipWithState.id, currentIslandStorageQty, contractorInfo2.item, contractInfo.payment_sum;
                         end if;
 
                         insert into actions.transfers (ship, item, quantity, direction)
@@ -895,7 +900,7 @@ BEGIN
                 into cargoQty;
 
                 if cargoQty < 0.001 then
-                    if debugg then
+                    if 1 = 0 then
                         raise notice '[PLAYER %] WARN ship % not enough items in cargo, back to ''moving_to_load''', player_id, shipWithState.id;
                     end if;
                     call setState(shipWithState.id, 'moving_to_load', currentTime);
@@ -920,7 +925,7 @@ BEGIN
 
                 call setState(shipWithState.id, 'idle', currentTime);
             else
-                if debugg then
+                if 1 = 0 then
                     raise notice '[PLAYER %] ship % unknown and unhandled state %', player_id, shipWithState.id, shipWithState.state;
                 end if;
             end if;

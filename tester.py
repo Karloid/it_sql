@@ -10,15 +10,16 @@ import matplotlib.pyplot as plt
 data_queue = queue.Queue()
 
 
-indexOfRunnerToWatch = 43241
-threadIndex = [indexOfRunnerToWatch, 111, 222, 3333, 44445345, 5312312]
+indexOfRunnerToWatch = 943241
+threadIndex = [indexOfRunnerToWatch, 11331, 29922, 399333, 4945345, 539312]
 
 # Define a function to run the command
 def run_command(index):
     print("started match for seed " + str(index))
+    oppFile = 'solution_08_bug_fixes.sql'
     command = 'docker run --rm -i -e SEED=' + str(
         #       index) + ' --mount "type=bind,src=$(pwd)/options.toml,dst=/tmp/options.toml" --mount "type=bind,src=$(pwd)/solution.sql,dst=/tmp/player1.sql" --mount "type=bind,src=$(pwd)/solution_04.sql,dst=/tmp/player2.sql" ghcr.io/all-cups/it_one_cup_sql --solution /tmp/player1.sql --solution /tmp/player2.sql --options /tmp/options.toml'
-        index) + ' --mount "type=bind,src=$(pwd)/R2-options.toml,dst=/tmp/options.toml" --mount "type=bind,src=$(pwd)/solution.sql,dst=/tmp/player1.sql" --mount "type=bind,src=$(pwd)/solution_04.sql,dst=/tmp/player2.sql" ghcr.io/all-cups/it_one_cup_sql --solution /tmp/player1.sql --solution /tmp/player2.sql --options /tmp/options.toml'
+        index) + ' --mount "type=bind,src=$(pwd)/R2-options.toml,dst=/tmp/options.toml" --mount "type=bind,src=$(pwd)/solution.sql,dst=/tmp/player1.sql" --mount "type=bind,src=$(pwd)/' + oppFile + ',dst=/tmp/player2.sql" ghcr.io/all-cups/it_one_cup_sql --solution /tmp/player1.sql --solution /tmp/player2.sql --options /tmp/options.toml'
 
     process = subprocess.Popen(command, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     firstPlayerScore = None
@@ -78,16 +79,6 @@ def run_command(index):
             time = float(time_match.group(1))
             money = float(money_match.group(1))
             oppMoney = float(opp_match.group(1))
-
-           # print("\n")
-            #   print("My Money Per Time:", my_money_per_time)
-            #   print("Opponent Money Per Time:", opp_money_per_time)
-            #   print("Total Contract Quantity:", total_contract_qty)
-            #   print("Stored at Customer Quantity:", stored_at_customer_qty)
-            #   print("Parked Cargo Quantity:", parked_cargo_qty)
-            #   print("Moved Cargo Quantity:", moved_cargo_qty)
-            #   print("Total Ship Capacity:", total_ship_capacity)
-            # print("Capacity Utilisation:", capacity_utilisation)
 
             # Print the extracted values
             data_queue.put((index, time, money, oppMoney, my_money_per_time,
@@ -174,7 +165,7 @@ def update_plot(frame):
 
 # Start the plot update thread
 # Create animation
-ani = animation.FuncAnimation(fig, update_plot, frames=range(10), interval=500)
+ani = animation.FuncAnimation(fig, update_plot, frames=range(10), interval=2000)
 
 # Display the plot
 plt.show()
