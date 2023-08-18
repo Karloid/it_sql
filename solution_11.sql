@@ -838,7 +838,7 @@ BEGIN
                                         least(vendorInfo.quantity, shipWithState.capacity,
                                               remainedQtyForContract - storageQtyOnVendorIsland);
 
-                                if 1 = 0 then
+                                if 1 = 1 then
                                     raise notice '[PLAYER %] ship % this_island_wait_items % currentIslandStorageQty % found vendor % island % do offer for % storageQtyOnVendorIsland % remainedQtyForContract %',
                                         player_id, shipWithState.id, currentIslandInfo.this_island_wait_items, currentIslandStorageQty, vendorInfo.id, vendorInfo.island,
                                         qtyToBuyFromVendor, storageQtyOnVendorIsland, remainedQtyForContract;
