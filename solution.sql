@@ -43,6 +43,17 @@ create table "my"."ship_to_contractor"
     "ship"       integer not null primary key,
     "contractor" integer not null
 );
+
+/*CREATE INDEX ship_to_contractor_contractor_index ON world.cargo (ship);
+
+CREATE INDEX parked_ships_ship_index ON world.parked_ships (ship);
+CREATE INDEX moving_shipsship_index ON world.moving_ships (ship);
+CREATE INDEX transferring_ships_index ON world.transferring_ships (ship);
+CREATE INDEX storage_island_index ON world.storage (island);
+CREATE INDEX contractors_item_index ON world.contractors (item);
+CREATE INDEX contracts_player_index ON world.contracts (player);*/
+
+
 /*
 
 ALTER TABLE actions.offers
@@ -331,11 +342,17 @@ declare
     customerQtyRemaining double precision;
     vendorsToPick        vendorBuyInfo[] := Array []::vendorBuyInfo[];
     vendorQtyToGet       double precision;
+    curStorageQty        double precision;
 begin
     totalTime := 0.0;
 
     -- get shipInfo
-    select * into customerInfo from world.contractors where id = customers_id;
+    select *
+    into customerInfo
+    from world.contractors cons,
+         world.islands con_isl
+    where cons.id = customers_id
+      and con_isl.id = cons.island;
 
     -- get distance between vendor and ship
     -- select * into shipIsland from world.islands where id = (select island from world.parked_ships where ship = ship_id);
@@ -343,13 +360,32 @@ begin
 
     customerQtyRemaining := customer_quantity;
     profit := 0.0;
+
+    -- fill curStorageQty
+    select least(quantity, customerInfo.quantity)
+    into curStorageQty
+    from world.storage ss
+    where ss.island = customerInfo.quantity
+      and ss.item = customerInfo.item;
+    curStorageQty := coalesce(curStorageQty, 0.0);
+
+    profit := profit + (customerInfo.price_per_unit * curStorageQty);
+    customerQtyRemaining := customerQtyRemaining - curStorageQty;
+
     for vendorInfo in
-        select *
-        from world.contractors ven
+        select *,
+               (select (((customerInfo.price_per_unit) -
+                         ven.price_per_unit)
+                   * ven.quantity) /
+                       calcDistance(ven_isl.x, ven_isl.y, customerInfo.x, customerInfo.y)) profit_per_distance
+        from world.contractors ven,
+             world.islands ven_isl
         where ven.type = 'vendor'
+          and ven_isl.id = ven.island
           and ven.item = customerInfo.item
           and ven.price_per_unit <= customerInfo.price_per_unit - 3.0
         order by ven.price_per_unit asc
+      --  order by profit_per_distance desc
         loop
             if customerQtyRemaining <= 0.0 then
                 exit;
@@ -449,7 +485,7 @@ BEGIN
     select game_time into currentTime from world.global;
     select money into myMoney from world.players where id = player_id;
     select money into oppMoney from world.players where id <> player_id order by id limit 1;
-    if 1 = 0 then
+    if 1 = 1 then
 
         select coalesce(sum(con.quantity), 0.0)
         into totalContractQty
@@ -606,7 +642,7 @@ BEGIN
                 continue;
             end if;
 
-            if 1 = 0 then
+            if debugg then
                 raise notice '[PLAYER %] new contractor customerProfit %', player_id, to_json(customerRichInfo);
             end if;
 
@@ -715,16 +751,22 @@ BEGIN
                 else
 
                     call setState(shipWithState.id, 'moving_to_load', currentTime);
-                    insert into actions.wait (until) values (currentTime + 0.00000001);
+                    shipWithState.state := 'moving_to_load';
 
                 end if;
+            end if;
 
-            elseif shipWithState.state = 'moving_to_load' then
+            if shipWithState.state = 'moving_to_load' then
                 -- ok so, items should be available at the island otherwise we should reacquire items
 
                 contractorId := shipContractor;
 
-                select * from world.contractors contractors where contractors.id = contractorId into contractorInfo2;
+                select *
+                from world.contractors contractors,
+                     world.islands isl
+                where contractors.id = contractorId
+                  and isl.id = contractors.island
+                into contractorInfo2;
                 select * from world.contracts contracts where contracts.contractor = contractorId into contractInfo;
 
                 if contractInfo is null then
@@ -732,7 +774,7 @@ BEGIN
                         raise notice '[PLAYER %] WARN ship % contract % not found, back to idle', player_id, shipWithState.id, contractorId;
                     end if;
                     call setState(shipWithState.id, 'idle', currentTime);
-                    insert into actions.wait (until) values (currentTime + 0.001);
+                    insert into actions.wait (until) values (currentTime + 0.0001);
 
                     -- if nothing found thats really bad
                 else
@@ -770,22 +812,22 @@ BEGIN
                     elsif currentIslandInfo.this_island_wait_items or
                           currentIslandStorageQty < least(contractInfo.quantity, 1.0) then
 
-                       /*    select dt.island, dt.qty
-                           into islandWithStorageInfo
-                           from (select coalesce(sum(stor.quantity), 0.0) qty, stor.island
-                                 from world.storage stor
-                                 where stor.island <> shipWithState.island_coalesce
-                                   and stor.player = player_id
-                                   and stor.item = contractorInfo2.item
-                                   and stor.island not in (select con2.island
-                                                           from world.contractors con2,
-                                                                my.acquired_contractors ac
-                                                           where ac.contractor = con2.id
-                                                             and con2.item = contractorInfo2.item)
-                                 group by stor.island) dt
-                           where dt.qty > shipWithState.capacity * 0.99
-                           order by dt.qty desc
-                           limit 1;*/
+                        /*    select dt.island, dt.qty
+                            into islandWithStorageInfo
+                            from (select coalesce(sum(stor.quantity), 0.0) qty, stor.island
+                                  from world.storage stor
+                                  where stor.island <> shipWithState.island_coalesce
+                                    and stor.player = player_id
+                                    and stor.item = contractorInfo2.item
+                                    and stor.island not in (select con2.island
+                                                            from world.contractors con2,
+                                                                 my.acquired_contractors ac
+                                                            where ac.contractor = con2.id
+                                                              and con2.item = contractorInfo2.item)
+                                  group by stor.island) dt
+                            where dt.qty > shipWithState.capacity * 0.99
+                            order by dt.qty desc
+                            limit 1;*/
 
                         if 1 = 0 and islandWithStorageInfo is not null then
                             if debugg then
@@ -794,18 +836,26 @@ BEGIN
                             end if;
                             call moveToTheNextIsland(player_id, shipWithState.id, islandWithStorageInfo.island);
                         else
-                            select *
+                            select *,
+                                   -- consider remove
+                                   (select (((contractInfo.payment_sum / contractInfo.quantity) -
+                                             vendors.price_per_unit)
+                                       * vendors.quantity) /
+                                           calcDistance(isl.x, isl.y, contractorInfo2.x, contractorInfo2.y)) profit_per_distance
                             into vendorInfo
-                            from world.contractors vendors
+                            from world.contractors vendors,
+                                 world.islands isl
                             where vendors.type = 'vendor'
+                              and isl.id = vendors.island
                               and vendors.item = contractorInfo2.item
-                              and vendors.quantity > 10.0
+                              and vendors.quantity > 100.0
                               and vendors.island not in (select con2.island
                                                          from world.contractors con2,
                                                               my.acquired_contractors ac
                                                          where ac.contractor = con2.id
                                                            and con2.item = contractorInfo2.item)
-                            order by vendors.price_per_unit asc
+                            order by vendors.price_per_unit asc  -- it is better actually
+                          --  order by profit_per_distance desc
                             limit 1;
 
                             if vendorInfo is null then
@@ -827,18 +877,20 @@ BEGIN
 
                                 -- populate remainedQtyForContract
                                 select contractInfo.quantity - coalesce((select coalesce(sum(quantity), 0.0)
-                                                 from world.storage storage
-                                                 where storage.island = contractorInfo2.island
-                                                   and storage.item = vendorInfo.item
-                                                   and storage.player = player_id),
-                                                0.0) - storageQtyOnVendorIsland
+                                                                         from world.storage storage
+                                                                         where storage.island = contractorInfo2.island
+                                                                           and storage.item = vendorInfo.item
+                                                                           and storage.player = player_id),
+                                                                        0.0) - storageQtyOnVendorIsland
                                 into remainedQtyForContract;
 
                                 qtyToBuyFromVendor :=
                                         least(vendorInfo.quantity, shipWithState.capacity,
                                               remainedQtyForContract - storageQtyOnVendorIsland);
 
-                                if 1 = 0 then
+                                qtyToBuyFromVendor := vendorInfo.quantity;
+
+                                if debugg then
                                     raise notice '[PLAYER %] ship % this_island_wait_items % currentIslandStorageQty % found vendor % island % do offer for % storageQtyOnVendorIsland % remainedQtyForContract %',
                                         player_id, shipWithState.id, currentIslandInfo.this_island_wait_items, currentIslandStorageQty, vendorInfo.id, vendorInfo.island,
                                         qtyToBuyFromVendor, storageQtyOnVendorIsland, remainedQtyForContract;
@@ -895,7 +947,7 @@ BEGIN
                         raise notice '[PLAYER %] WARN ship % not enough items in cargo, back to ''moving_to_load''', player_id, shipWithState.id;
                     end if;
                     call setState(shipWithState.id, 'moving_to_load', currentTime);
-                    insert into actions.wait (until) values (currentTime + 0.1);
+                    insert into actions.wait (until) values (currentTime + 0.00001);
                 else
                     -- ok, we have enough items in cargo, lets go to destination
                     call moveToTheNextIsland(player_id, shipWithState.id, contractorInfo.island);

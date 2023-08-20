@@ -16,6 +16,7 @@ threadIndex = [indexOfRunnerToWatch, 11331, 29922, 399333, 4945345, 539312]
 # Define a function to run the command
 def run_command(index):
     print("started match for seed " + str(index))
+    oppFile = 'solution_10_no_logs.sql'
     oppFile = 'solution_11.sql'
     command = 'docker run --rm -i -e SEED=' + str(
         #       index) + ' --mount "type=bind,src=$(pwd)/options.toml,dst=/tmp/options.toml" --mount "type=bind,src=$(pwd)/solution.sql,dst=/tmp/player1.sql" --mount "type=bind,src=$(pwd)/solution_04.sql,dst=/tmp/player2.sql" ghcr.io/all-cups/it_one_cup_sql --solution /tmp/player1.sql --solution /tmp/player2.sql --options /tmp/options.toml'
