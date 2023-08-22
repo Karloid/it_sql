@@ -18,6 +18,7 @@ def run_command(index):
     print("started match for seed " + str(index))
     oppFile = 'solution_10_no_logs.sql'
     oppFile = 'solution_11.sql'
+    oppFile = 'solution_12.sql'
     command = 'docker run --rm -i -e SEED=' + str(
         #       index) + ' --mount "type=bind,src=$(pwd)/options.toml,dst=/tmp/options.toml" --mount "type=bind,src=$(pwd)/solution.sql,dst=/tmp/player1.sql" --mount "type=bind,src=$(pwd)/solution_04.sql,dst=/tmp/player2.sql" ghcr.io/all-cups/it_one_cup_sql --solution /tmp/player1.sql --solution /tmp/player2.sql --options /tmp/options.toml'
         index) + ' --mount "type=bind,src=$(pwd)/R2-options.toml,dst=/tmp/options.toml" --mount "type=bind,src=$(pwd)/solution.sql,dst=/tmp/player1.sql" --mount "type=bind,src=$(pwd)/' + oppFile + ',dst=/tmp/player2.sql" ghcr.io/all-cups/it_one_cup_sql --solution /tmp/player1.sql --solution /tmp/player2.sql --options /tmp/options.toml'

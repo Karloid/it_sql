@@ -80,7 +80,7 @@ EXECUTE FUNCTION update_offer_quantity();*/
 create or replace procedure acquireContractor(contractorId integer) as
 $$
 declare
-    debugg boolean := true;
+    debugg boolean := false;
 begin
     if 1 = 0 then raise notice 'acquireContractor %', contractorId; end if;
     insert into "my"."acquired_contractors" ("contractor") values (contractorId) on conflict do nothing;
@@ -100,7 +100,7 @@ $$ language plpgsql;
 CREATE OR REPLACE PROCEDURE setState(shipId integer, stateInp my.ship_state, curTime double precision) AS
 $$
 declare
-    debugg boolean := true;
+    debugg boolean := false;
 BEGIN
     if 1 = 0 then raise notice 'setState % %', shipId, stateInp; end if;
     if stateInp is null then
@@ -138,7 +138,7 @@ $BODY$
 CREATE OR REPLACE PROCEDURE setInt(keyInp TEXT, valueInp int) AS
 $BODY$
 declare
-    debugg boolean := true;
+    debugg boolean := false;
 BEGIN
     if 1 = 0 then raise notice 'setInt % %', keyInp, valueInp; end if;
     if valueInp is null then
@@ -173,7 +173,7 @@ $BODY$
 CREATE OR REPLACE PROCEDURE setDouble(keyInp TEXT, valueInp double precision) AS
 $BODY$
 declare
-    debugg boolean := true;
+    debugg boolean := false;
 BEGIN
     if 1 = 0 then raise notice 'setDouble % %', keyInp, valueInp; end if;
     if valueInp is null then
@@ -209,7 +209,7 @@ $BODY$
 CREATE OR REPLACE PROCEDURE setText(keyInp TEXT, valueInp text) AS
 $BODY$
 declare
-    debugg boolean := true;
+    debugg boolean := false;
 BEGIN
     if 1 = 0 then raise notice 'setText % %', keyInp, valueInp; end if;
     if valueInp is null then
@@ -227,7 +227,7 @@ $BODY$
 create procedure moveToTheNextIsland(player_id integer, ship_id integer, island_id integer) as
 $$
 declare
-    debugg boolean := true;
+    debugg boolean := false;
 begin
     if 1 = 0 then raise notice '[PLAYER %] MOVING SHIP % TO ISLAND %', player_id, ship_id, island_id; end if;
     insert into actions.ship_moves (ship, destination) values (ship_id, island_id);
@@ -321,32 +321,28 @@ create type customerVendorVariant as
     customerId    integer,
     profit        double precision,
     qtyToSell     double precision,
-    --vendorsToPick vendorBuyInfo[],
-    totalTraveledDistance double precision,
-    profitOverTraveledDistance double precision
+    vendorsToPick vendorBuyInfo[]
 );
 
 create function calculateProfit2(
     customers_id integer,
     customer_island integer,
-    customer_quantity double precision,
-    my_player integer)
+    customer_quantity double precision)
     returns customerVendorVariant
 as
 $$
 declare
-    customerInfo          record;
-    vendorInfo            record;
-    shipInfo              record;
-    customerIsland        record;
-    shipIsland            record;
-    totalTime             double precision;
-    profit                double precision;
-    customerQtyRemaining  double precision;
-    vendorsToPick         vendorBuyInfo[] := Array []::vendorBuyInfo[];
-    vendorQtyToGet        double precision;
-    curStorageQty         record;
-    totalTraveledDistance double precision;
+    customerInfo         record;
+    vendorInfo           record;
+    shipInfo             record;
+    customerIsland       record;
+    shipIsland           record;
+    totalTime            double precision;
+    profit               double precision;
+    customerQtyRemaining double precision;
+    vendorsToPick        vendorBuyInfo[] := Array []::vendorBuyInfo[];
+    vendorQtyToGet       double precision;
+    curStorageQty        double precision;
 begin
     totalTime := 0.0;
 
@@ -364,23 +360,17 @@ begin
 
     customerQtyRemaining := customer_quantity;
     profit := 0.0;
-    totalTraveledDistance := 0.0001;
 
     -- fill curStorageQty
-    select quantity qty, ss.island
+    select least(quantity, customerInfo.quantity)
     into curStorageQty
     from world.storage ss
     where ss.island = customerInfo.quantity
-      and ss.player = my_player
       and ss.item = customerInfo.item;
+    curStorageQty := coalesce(curStorageQty, 0.0);
 
-    if curStorageQty is not null then
-
-        profit := profit + (customerInfo.price_per_unit * curStorageQty.qty);
-        customerQtyRemaining := customerQtyRemaining - curStorageQty.qty;
-
-        totalTraveledDistance := totalTraveledDistance + calcDistanceIsland(curStorageQty.island, customerInfo.island);
-    end if;
+    profit := profit + (customerInfo.price_per_unit * curStorageQty);
+    customerQtyRemaining := customerQtyRemaining - curStorageQty;
 
     for vendorInfo in
         select *,
@@ -395,28 +385,24 @@ begin
           and ven.item = customerInfo.item
           and ven.price_per_unit <= customerInfo.price_per_unit - 3.0
         order by ven.price_per_unit asc
-        --  order by profit_per_distance desc
+      --  order by profit_per_distance desc
         loop
             if customerQtyRemaining <= 0.0 then
-                continue;
+                exit;
             end if;
             vendorQtyToGet := least(vendorInfo.quantity, customerQtyRemaining);
             if vendorQtyToGet <= 0.0 then
                 continue;
             end if;
 
-            totalTraveledDistance := totalTraveledDistance +
-                                     calcDistance(vendorInfo.x, vendorInfo.y, customerInfo.x, customerInfo.y);
             customerQtyRemaining := customerQtyRemaining - vendorQtyToGet;
 
             profit := profit + vendorQtyToGet * (customerInfo.price_per_unit - vendorInfo.price_per_unit);
 
-          --  vendorsToPick := vendorsToPick || ARRAY [row (vendorInfo.id, vendorQtyToGet)::vendorBuyInfo];
+            vendorsToPick := vendorsToPick || ARRAY [row (vendorInfo.id, vendorQtyToGet)::vendorBuyInfo];
         end loop;
 
-
-    return row (customers_id, profit, customer_quantity - customerQtyRemaining, /*vendorsToPick,*/ totalTraveledDistance,
-        profit / totalTraveledDistance);
+    return row (customers_id, profit, customer_quantity - customerQtyRemaining, vendorsToPick);
 
     --return query select customers_id, profit, vendorsToPick;
 end;
@@ -433,40 +419,6 @@ declare
     map_size_actual double precision;
     result          double precision;
 begin
-    select map_size into map_size_actual from world.global;
-
-    xDiff := abs(x1 - x2);
-    yDiff := abs(y1 - y2);
-    if xDiff > map_size_actual / 2 then
-        xDiff := map_size_actual - xDiff;
-    end if;
-    if yDiff > map_size_actual / 2 then
-        yDiff := map_size_actual - yDiff;
-    end if;
-    result := xDiff + yDiff;
-
-    return result;
-end
-$$ language plpgsql;
-
--- При расчете времени перемещения используется манхеттенское расстояние между текущим и целевым островом. При этом игровая карта является цикличной по обеим координатам.
-create function calcDistanceIsland(island1 integer, island2 integer)
-    returns double precision as
-$$
-declare
-    x1              double precision;
-    y1              double precision;
-    x2              double precision;
-    y2              double precision;
-    debugg          boolean := true;
-    xDiff           double precision;
-    yDiff           double precision;
-    map_size_actual double precision;
-    result          double precision;
-begin
-    select x, y into x1, y1 from world.islands where id = island1;
-    select x, y into x2, y2 from world.islands where id = island2;
-
     select map_size into map_size_actual from world.global;
 
     xDiff := abs(x1 - x2);
@@ -500,7 +452,7 @@ declare
     bestContractDraft        record;
     vendor                   record;
     vendorQtyToBuy           double precision;
-    debugg                   boolean := true;
+    debugg                   boolean := false;
     tmpInt                   integer;
     shipContractor           integer;
     currentIslandStorageQty  double precision;
@@ -527,39 +479,13 @@ declare
     remainedQtyForContract   double precision;
     currentIslandInfo        record;
     islandWithStorageInfo    record;
-    vendorInfo2              record;
-    firstTickVendorInfo      record;
 
 
 BEGIN
     select game_time into currentTime from world.global;
-    if currentTime <= 0.0 then
-        for firstTickVendorInfo in
-            WITH top_prices AS (SELECT max(customers.price_per_unit) best_price, customers.item
-                                FROM world.contractors customers
-                                WHERE customers.type = 'customer'
-                                GROUP BY customers.item)
-            select vendors.id                                             vendor_id,
-                   vendors.quantity                                       vendor_qty,
-                   (vendors.price_per_unit - top_prices_alias.best_price) profit
-            from world.contractors vendors,
-                 top_prices top_prices_alias
-            where vendors.type = 'vendor'
-              and top_prices_alias.item = vendors.item
-            order by profit desc
-            limit 10
-            loop
-                insert into actions.offers (contractor, quantity)
-                values (firstTickVendorInfo.vendor_id, firstTickVendorInfo.vendor_qty);
-
-            end loop;
-
-        return;
-    end if;
-
     select money into myMoney from world.players where id = player_id;
     select money into oppMoney from world.players where id <> player_id order by id limit 1;
-    if debugg then
+    if 1 = 0 then
 
         select coalesce(sum(con.quantity), 0.0)
         into totalContractQty
@@ -703,15 +629,14 @@ BEGIN
         select d.customerId,
                customerProfit,
                pg_typeof(d.customerProfit),
-               (d.customerProfit).profit,
-               (d.customerProfit).profitOverTraveledDistance
-        from (SELECT customers.id                                                                    AS customerId,
-                     calculateProfit2(customers.id, customers.island, customers.quantity, player_id) AS customerProfit
+               (d.customerProfit).profit
+        from (SELECT customers.id                                                         AS customerId,
+                     calculateProfit2(customers.id, customers.island, customers.quantity) AS customerProfit
               FROM world.contractors customers
               WHERE customers.type = 'customer'
                 AND customers.id NOT IN (SELECT ac.contractor FROM my.acquired_contractors ac)) d
-        order by (d.customerProfit).totalTraveledDistance asc
-        limit 10 - coalesce((select count(*) from my.acquired_contractors), 0)
+        order by (d.customerProfit).profit desc
+        limit 6 - coalesce((select count(*) from my.acquired_contractors), 0)
         loop
             if currentTime > 99000.0 then
                 continue;
@@ -726,7 +651,7 @@ BEGIN
         end loop;
 
     -- print current state of ships
-/*    for shipWithState in
+    for shipWithState in
         select s.*,
                ss.state,
                coalesce(ps.island, ts.island)                                               island_coalesce,
@@ -754,7 +679,7 @@ BEGIN
                     player_id, shipWithState.id, shipWithState.state, shipWithState.island_coalesce, shipWithState.shipContractor,
                     shipWithState.item, shipWithState.quantity, shipWithState.game_state;
             end if;
-        end loop;*/
+        end loop;
 
     -- state machine
     for shipWithState in
@@ -770,17 +695,15 @@ BEGIN
                    else 'unknown!'
                    end as                     game_state
 
-        from world.islands isl,
-             world.ships s
+        from world.ships s
                  left join my.ship_states ss on ss.ship = s.id
                  left join world.cargo cargo on s.id = cargo.ship
                  left join world.transferring_ships ts on s.id = ts.ship
                  left join world.parked_ships ps on s.id = ps.ship
                  left join world.moving_ships ms on s.id = ms.ship
         where s.player = player_id
-          and ps.island = isl.id
-        order by calcDistance(isl.x, isl.y, 500.0, 500.0) asc
-        --  order by s.capacity * s.speed asc
+          and ps.island is not null
+        order by s.capacity * s.speed asc
         loop
             if 1 = 0 then
                 raise notice '[PLAYER %] handle parked states ship % state % island % contains item % qty % game_state %',
@@ -803,10 +726,8 @@ BEGIN
                     select ac.contractor,
                            (select count(*) from my.ship_to_contractor stc where stc.contractor = ac.contractor) count
                     into contractorToPick
-                    from my.acquired_contractors ac,
-                         world.contracts cs
-                    where cs.contractor = ac.contractor
-                    order by count asc, cs.payment_sum desc
+                    from my.acquired_contractors ac
+                    order by count asc
                     limit 1;
 
                     if contractorToPick is null then
@@ -891,24 +812,24 @@ BEGIN
                     elsif currentIslandInfo.this_island_wait_items or
                           currentIslandStorageQty < least(contractInfo.quantity, 1.0) then
 
-                        select dt.island, dt.qty
-                        into islandWithStorageInfo
-                        from (select coalesce(sum(stor.quantity), 0.0) qty, stor.island
-                              from world.storage stor
-                              where stor.island <> shipWithState.island_coalesce
-                                and stor.player = player_id
-                                and stor.item = contractorInfo2.item
-                                and stor.island not in (select con2.island
-                                                        from world.contractors con2,
-                                                             my.acquired_contractors ac
-                                                        where ac.contractor = con2.id
-                                                          and con2.item = contractorInfo2.item)
-                              group by stor.island) dt
-                        where dt.qty > shipWithState.capacity * 0.88
-                        order by calcDistanceIsland(dt.island, shipWithState.island_coalesce) asc
-                        limit 1;
+                        /*    select dt.island, dt.qty
+                            into islandWithStorageInfo
+                            from (select coalesce(sum(stor.quantity), 0.0) qty, stor.island
+                                  from world.storage stor
+                                  where stor.island <> shipWithState.island_coalesce
+                                    and stor.player = player_id
+                                    and stor.item = contractorInfo2.item
+                                    and stor.island not in (select con2.island
+                                                            from world.contractors con2,
+                                                                 my.acquired_contractors ac
+                                                            where ac.contractor = con2.id
+                                                              and con2.item = contractorInfo2.item)
+                                  group by stor.island) dt
+                            where dt.qty > shipWithState.capacity * 0.99
+                            order by dt.qty desc
+                            limit 1;*/
 
-                        if 1 = 1 and islandWithStorageInfo is not null then
+                        if 1 = 0 and islandWithStorageInfo is not null then
                             if debugg then
                                 raise notice '[PLAYER %] ship % item % found island % with already stored qty % go there',
                                     player_id, shipWithState.id, contractorInfo2.item, islandWithStorageInfo.island, islandWithStorageInfo.qty;
@@ -916,7 +837,6 @@ BEGIN
                             call moveToTheNextIsland(player_id, shipWithState.id, islandWithStorageInfo.island);
                         else
                             select *,
-                                   vendors.id                                                                vendor_id,
                                    -- consider remove
                                    (select (((contractInfo.payment_sum / contractInfo.quantity) -
                                              vendors.price_per_unit)
@@ -934,8 +854,8 @@ BEGIN
                                                               my.acquired_contractors ac
                                                          where ac.contractor = con2.id
                                                            and con2.item = contractorInfo2.item)
-                            order by vendors.price_per_unit asc -- it is better actually
-                            --  order by profit_per_distance desc
+                            order by vendors.price_per_unit asc  -- it is better actually
+                          --  order by profit_per_distance desc
                             limit 1;
 
                             if vendorInfo is null then
@@ -979,31 +899,9 @@ BEGIN
                                 if qtyToBuyFromVendor > 0.0 then
                                     -- create offer
                                     insert into actions.offers (contractor, quantity)
-                                    values (vendorInfo.vendor_id, least(vendorInfo.quantity, qtyToBuyFromVendor))
+                                    values (vendorInfo.id, least(vendorInfo.quantity, qtyToBuyFromVendor))
                                     --   on conflict do nothing
                                     returning id into tmpInt;
-
-                                    for vendorInfo2 in
-                                        select *
-                                        from world.contractors cons
-                                        where cons.type = 'vendor'
-                                          and cons.id <> vendorInfo.vendor_id
-                                          and cons.item = vendorInfo.item
-                                          and cons.island = vendorInfo.island
-                                          and currentTime < 80000.0
-                                          and (contractorInfo2.price_per_unit - cons.price_per_unit) /
-                                              (contractorInfo2.price_per_unit - vendorInfo.price_per_unit) > 0.6
-                                        loop
-                                            if debugg then
-                                                raise notice '[PLAYER %] ship % found additional vendor % will buy qty %',
-                                                    player_id, shipWithState.id, vendorInfo2.id, vendorInfo2.quantity;
-                                            end if;
-                                            insert into actions.offers (contractor, quantity)
-                                            values (vendorInfo2.id, vendorInfo2.quantity)
-                                            --   on conflict do nothing
-                                            returning id into tmpInt;
-                                        end loop;
-
                                 end if;
 
                                 call setState(shipWithState.id, 'moving_to_load', currentTime);
